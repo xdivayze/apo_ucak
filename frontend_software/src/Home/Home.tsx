@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import useGamepads from "./useGamepads";
 import ConfigUI from "./ConfigUI";
 import useGamepadAxes from "./useGamepadAxes";
@@ -20,11 +20,25 @@ export default function Home() {
   ]);
   useGamepadAxes(currentGamepad, axisArr, setAxisArr);
 
-  
-
-  const [configured, setConfigured] = useState(false);
+  const [showConfigUI, setShowConfigUI] = useState(false);
   return (
-    <div>
+    <div className="w-full h-full flex flex-col p-5  ">
+      {currentGamepad && (
+        <div
+          onClick={() => {
+            currentGamepad
+              ? setShowConfigUI(!showConfigUI)
+              : () => {
+                  console.error(
+                    "config ui cant be shown without gamepad selected"
+                  );
+                };
+          }}
+          className=" bg-gray-700 text-white flex justify-center h-7 w-1/6  rounded-md hover:cursor-pointer"
+        >
+          configure joystick
+        </div>
+      )}
       {currentGamepad && (
         <div>
           {axisArr.map((v, i) => {
@@ -51,11 +65,11 @@ export default function Home() {
         </div>
       )}
 
-      {currentGamepad && !configured && (
+      {currentGamepad && showConfigUI && (
         <ConfigUI
           functionalityArray={axisArr}
           setFunctionalityArray={setAxisArr}
-          setConfigured={setConfigured}
+          setShowConfigUI={setShowConfigUI}
         />
       )}
     </div>

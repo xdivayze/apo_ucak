@@ -1,20 +1,20 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import type { IAxis } from "./Home";
 
 export default function ConfigUI({
   functionalityArray,
   setFunctionalityArray,
-  setConfigured,
+  setShowConfigUI,
 }: {
   functionalityArray: Array<IAxis>;
   setFunctionalityArray: Dispatch<SetStateAction<Array<IAxis>>>;
-  setConfigured: Dispatch<SetStateAction<boolean>>;
+  setShowConfigUI: Dispatch<SetStateAction<boolean>>;
 }) {
   const [axisArr, setAxisArr] = useState(() =>
     functionalityArray.map((v) => ({ ...v, index: 0 }))
   );
   return (
-    <div>
+    <div className="flex w-full h-full flex-col justify-center">
       <div>
         {axisArr.map((v, i) => (
           <div key={i}>
@@ -39,9 +39,9 @@ export default function ConfigUI({
       <div
         onClick={() => {
           setFunctionalityArray(axisArr);
-          setConfigured(true);
+          setShowConfigUI(false);
         }}
-        className="text-white w-10 h-10 bg-blue-700"
+        className="text-white w-1/6 h-6 rounded-md justify-center flex flex-col text-center hover:cursor-pointer bg-blue-700"
       >
         Submit
       </div>
