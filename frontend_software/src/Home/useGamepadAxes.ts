@@ -19,7 +19,7 @@ export default function useGamepadAxes(
         setAxisValues((prev) =>
           prev.map((item, i) => { const val = gp.axes[mapping[i]?.index ?? 0] ?? 0; return{
             ...item,
-            value: Math.abs(val) >= 0.006 ? val : 0,
+            value: Math.abs(val) >= 0.1 ? val : 0,
           }})
         );
       }

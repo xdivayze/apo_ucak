@@ -15,8 +15,9 @@ export default function Home() {
   const [axisArr, setAxisArr] = useState<Array<IAxis>>([
     { index: 0, value: 0, description: "X" },
     { index: 1, value: 0, description: "Y" },
-    { index: 2, value: 0, description: "Z" },
-    { index: 3, value: 0, description: "rudder" },
+    { index: 6, value: 0, description: "gaz" },
+    { index: 5, value: 0, description: "rudder" },
+
   ]);
   useGamepadAxes(currentGamepad, axisArr, setAxisArr);
 
@@ -56,6 +57,7 @@ export default function Home() {
           {connectedGamepads.map((g, i) => (
             <div
               onClick={() => {
+                console.log(g.axes.length)
                 setCurrentGamepad(g);
               }}
             >
