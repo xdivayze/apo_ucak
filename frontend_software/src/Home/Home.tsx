@@ -16,7 +16,7 @@ export default function Home() {
     { index: 0, value: 0, description: "X" },
     { index: 1, value: 0, description: "Y" },
     { index: 2, value: 0, description: "Z" },
-    { index: 3, value: 0, description: "rutter" },
+    { index: 3, value: 0, description: "rudder" },
   ]);
   useGamepadAxes(currentGamepad, axisArr, setAxisArr);
 

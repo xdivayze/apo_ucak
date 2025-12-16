@@ -17,10 +17,10 @@ export default function useGamepadAxes(
         const mapping = axisArrRef.current;
 
         setAxisValues((prev) =>
-          prev.map((item, i) => ({
+          prev.map((item, i) => { const val = gp.axes[mapping[i]?.index ?? 0] ?? 0; return{
             ...item,
-            value: gp.axes[mapping[i]?.index ?? 0] ?? 0,
-          }))
+            value: Math.abs(val) >= 0.006 ? val : 0,
+          }})
         );
       }
 
