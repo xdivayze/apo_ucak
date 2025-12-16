@@ -1,3 +1,9 @@
+import Home from "./Home/Home";
+
 export default function App() {
-  return (<div>hi man</div>);
+  return (
+    <div>
+      <Home />
+    </div>
+  );
 }
