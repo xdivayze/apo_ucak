@@ -1,5 +1,8 @@
-import { useState } from "react";
-import useGamepads, { joystickMapping } from "./gamepad/useGamepads";
+import { useEffect, useRef, useState } from "react";
+import useGamepads, {
+  joystickMapping,
+  standardMapping,
+} from "./gamepad/useGamepads";
 import ConfigUI from "./gamepad/ConfigUI";
 import useGamepadAxes from "./gamepad/useGamepadAxes";
 
@@ -14,7 +17,21 @@ export default function Home() {
   const connectedGamepads = useGamepads();
   const [currentGamepad, setCurrentGamepad] = useState<Gamepad | null>(null);
   const [axisArr, setAxisArr] = useState<Array<IAxis>>(joystickMapping);
-  useGamepadAxes(currentGamepad, axisArr, setAxisArr);
+  const axisArrRef = useRef(axisArr);
+  useEffect(() => {
+    axisArrRef.current = axisArr;
+  }, [axisArr]);
+  useGamepadAxes(currentGamepad, (axes) => {
+    setAxisArr((prev) =>
+      prev.map((item, i) => {
+        const val = axes[axisArrRef.current[i]?.index ?? 0] ?? 0;
+        return {
+          ...item,
+          value: Math.abs(val) >= item.deadzone ? val : 0,
+        };
+      })
+    );
+  });
 
   const [showConfigUI, setShowConfigUI] = useState(false);
   return (
@@ -52,8 +69,10 @@ export default function Home() {
           {connectedGamepads.map((g, i) => (
             <div
               onClick={() => {
-                console.log(g.axes.length);
                 setCurrentGamepad(g);
+                setAxisArr(
+                  g.mapping === "standard" ? standardMapping : joystickMapping
+                );
               }}
             >
               {i} {g.id}

@@ -9,6 +9,13 @@ export const joystickMapping: Array<IAxis> = [
     { index: 5, value: 0, description: "rudder", deadzone: DEADZONE_RUDDER },
   ]
 
+  export const standardMapping: Array<IAxis> = [
+    { index: 0, value: 0, description: "X", deadzone: DEADZONE_DEFAULT },
+    { index: 1, value: 0, description: "Y", deadzone: DEADZONE_DEFAULT },
+    { index: 2, value: 0, description: "gaz", deadzone: DEADZONE_DEFAULT },
+    { index: 3, value: 0, description: "rudder", deadzone: DEADZONE_RUDDER },
+  ]
+
 export default function useGamepads() {
   const [connected, setConnected] = useState<Gamepad[]>([]);
   useEffect(() => {

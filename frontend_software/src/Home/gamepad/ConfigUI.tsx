@@ -38,6 +38,7 @@ export default function ConfigUI({
       </div>
       <div
         onClick={() => {
+          console.log(axisArr)
           setFunctionalityArray(axisArr);
           setShowConfigUI(false);
         }}
