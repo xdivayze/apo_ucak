@@ -1,23 +1,26 @@
 import { useState } from "react";
 import useGamepads from "./useGamepads";
 import ConfigUI from "./ConfigUI";
-import useGamepadAxes from "./useGamepadAxes";
+import useGamepadAxes, {
+  DEADZONE_DEFAULT,
+  DEADZONE_RUDDER,
+} from "./useGamepadAxes";
 
 export interface IAxis {
   index: number;
   value: number;
   description: string;
+  deadzone: number;
 }
 
 export default function Home() {
   const connectedGamepads = useGamepads();
   const [currentGamepad, setCurrentGamepad] = useState<Gamepad | null>(null);
   const [axisArr, setAxisArr] = useState<Array<IAxis>>([
-    { index: 0, value: 0, description: "X" },
-    { index: 1, value: 0, description: "Y" },
-    { index: 6, value: 0, description: "gaz" },
-    { index: 5, value: 0, description: "rudder" },
-
+    { index: 0, value: 0, description: "X", deadzone: DEADZONE_DEFAULT },
+    { index: 1, value: 0, description: "Y", deadzone: DEADZONE_DEFAULT },
+    { index: 6, value: 0, description: "gaz", deadzone: DEADZONE_DEFAULT },
+    { index: 5, value: 0, description: "rudder", deadzone: DEADZONE_RUDDER },
   ]);
   useGamepadAxes(currentGamepad, axisArr, setAxisArr);
 
@@ -57,7 +60,7 @@ export default function Home() {
           {connectedGamepads.map((g, i) => (
             <div
               onClick={() => {
-                console.log(g.axes.length)
+                console.log(g.axes.length);
                 setCurrentGamepad(g);
               }}
             >
