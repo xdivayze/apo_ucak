@@ -1,5 +1,5 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
-import type { IAxis } from "./Home";
+import type { IAxis } from "../Home";
 
 export const DEADZONE_DEFAULT = 0.002;
 export const DEADZONE_RUDDER = 0.3;

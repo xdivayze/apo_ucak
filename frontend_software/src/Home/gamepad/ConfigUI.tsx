@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import type { IAxis } from "./Home";
+import type { IAxis } from "../Home";
 
 export default function ConfigUI({
   functionalityArray,

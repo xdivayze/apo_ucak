@@ -1,10 +1,7 @@
 import { useState } from "react";
-import useGamepads from "./useGamepads";
-import ConfigUI from "./ConfigUI";
-import useGamepadAxes, {
-  DEADZONE_DEFAULT,
-  DEADZONE_RUDDER,
-} from "./useGamepadAxes";
+import useGamepads, { joystickMapping } from "./gamepad/useGamepads";
+import ConfigUI from "./gamepad/ConfigUI";
+import useGamepadAxes from "./gamepad/useGamepadAxes";
 
 export interface IAxis {
   index: number;
@@ -16,12 +13,7 @@ export interface IAxis {
 export default function Home() {
   const connectedGamepads = useGamepads();
   const [currentGamepad, setCurrentGamepad] = useState<Gamepad | null>(null);
-  const [axisArr, setAxisArr] = useState<Array<IAxis>>([
-    { index: 0, value: 0, description: "X", deadzone: DEADZONE_DEFAULT },
-    { index: 1, value: 0, description: "Y", deadzone: DEADZONE_DEFAULT },
-    { index: 6, value: 0, description: "gaz", deadzone: DEADZONE_DEFAULT },
-    { index: 5, value: 0, description: "rudder", deadzone: DEADZONE_RUDDER },
-  ]);
+  const [axisArr, setAxisArr] = useState<Array<IAxis>>(joystickMapping);
   useGamepadAxes(currentGamepad, axisArr, setAxisArr);
 
   const [showConfigUI, setShowConfigUI] = useState(false);
