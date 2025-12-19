@@ -12,7 +12,7 @@ extern const uint16_t crc16_polynomial;
 extern const size_t payload_length_max;
 extern const size_t overhead;
 extern const size_t max_frame_size;
-typedef struct 
+typedef struct
 {
     uint32_t dest_address;
     uint32_t src_address;
@@ -25,6 +25,7 @@ typedef struct
 
 packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
                            uint32_t sequence_number, uint8_t payload_length, uint8_t *payload, uint16_t CRC);
+void free_packet(packet *p);
 
 int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt);
 

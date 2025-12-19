@@ -14,11 +14,15 @@ int test_calculate_crc()
     if (calculated_crc != hand_calculated_crc)
     {
         fprintf(stderr, "calcalated crc:0x%2x do not match the hand calculated crc: 0x%2x\n", calculated_crc, hand_calculated_crc);
+        free(data);
         return -1;
     }
+    free(data);
 
     return 0;
 }
+
+
 
 int main()
 {

@@ -86,7 +86,13 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     return idx;
 }
 
-//checks the crc
+void free_packet(packet *p)
+{
+    free(p->payload);
+    free(p);
+}
+
+// checks the crc
 int validate_packet(packet *p)
 {
     uint16_t calculated_crc = calculate_crc(p->payload, p->payload_length);
@@ -127,7 +133,7 @@ int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt)
     return idx;
 }
 
-//big endian CRC16 ccit false
+// big endian CRC16 ccit false
 uint16_t calculate_crc(uint8_t *data, size_t length)
 {
     uint8_t i;
