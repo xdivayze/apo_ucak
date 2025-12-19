@@ -4,8 +4,127 @@
 #include "packet.h"
 #include <stdio.h>
 
+int test_parse_packet()
+{
+    fprintf(stdout, "testing packet parsing\n");
+    uint32_t dest_addr = (uint32_t)(rand() & 0xFFFFFFFF);
+    uint32_t source_addr = (uint32_t)(rand() & 0xFFFFFFFF);
+    uint16_t ack_id = (uint16_t)(rand() & 0xFFFF);
+    uint32_t sequence_number = 0;
+    uint8_t payload_length = 8;
+
+    uint8_t *payload = malloc(payload_length);
+    memset(payload, 0xFF, payload_length);
+
+    uint16_t crc = calculate_crc(payload, payload_length);
+
+    uint8_t *buf = malloc(max_frame_size);
+
+    packet *p = packet_constructor(dest_addr, source_addr, ack_id, sequence_number, payload_length, payload, crc);
+
+    int result = packet_to_bytestream(buf, max_frame_size, p);
+
+    packet *callback_p = malloc(sizeof(packet));
+    int parse_result = parse_packet(buf, callback_p);
+    if (parse_result == -1)
+    {
+        fprintf(stderr, "parser returned -1\n");
+        free_packet(p);
+        free_packet(callback_p);
+        free(buf);
+        return -1;
+    }
+
+    if (validate_packet(callback_p))
+    {
+        fprintf(stderr, "payload inconsistency\n");
+        free_packet(p);
+        free_packet(callback_p);
+        free(buf);
+        return -1;
+    }
+
+    if ((callback_p->ack_id != ack_id) || (callback_p->dest_address != dest_addr) || (callback_p->payload_length != payload_length) || (callback_p->sequence_number != sequence_number) || (callback_p->src_address != source_addr))
+    {
+        fprintf(stderr, "packet inconsistency\n");
+        free_packet(p);
+        free_packet(callback_p);
+        free(buf);
+        return -1;
+    }
+
+    free_packet(p);
+    free_packet(callback_p);
+    free(buf);
+    return 0;
+}
+
+int test_packet_to_bytestream()
+{
+    fprintf(stdout, "testing packet to bytestream conversion\n");
+    uint32_t dest_addr = (uint32_t)(rand() & 0xFFFFFFFF);
+    uint32_t source_addr = (uint32_t)(rand() & 0xFFFFFFFF);
+    uint16_t ack_id = (uint16_t)(rand() & 0xFFFF);
+    uint32_t sequence_number = 0;
+    uint8_t payload_length = 8;
+
+    uint8_t *payload = malloc(payload_length);
+    memset(payload, 0xFF, payload_length);
+
+    uint16_t crc = calculate_crc(payload, payload_length);
+
+    uint8_t *buf = malloc(max_frame_size);
+
+    packet *p = packet_constructor(dest_addr, source_addr, ack_id, sequence_number, payload_length, payload, crc);
+
+    int result = packet_to_bytestream(buf, max_frame_size, p);
+
+    if (result == -1)
+    {
+        fprintf(stderr, "packet to bytestream returned -1\n");
+        free_packet(p);
+        free(buf);
+        return -1;
+    }
+
+    if (result != max_frame_size)
+    {
+        fprintf(stderr, "packet to bytestream returned non equal frame size\n");
+        free_packet(p);
+        free(buf);
+        return -1;
+    }
+
+    uint8_t found_preamble[7] = {0};
+    memcpy(found_preamble, buf, 7);
+
+    for (int i = 0; i < 7; i++)
+    {
+        if (preamble[i] != found_preamble[i])
+        {
+            fprintf(stderr, "wrong preamble: %s\n", found_preamble);
+            free_packet(p);
+            free(buf);
+            return -1;
+        }
+    }
+
+    if (validate_packet(p))
+    {
+        fprintf(stderr, "payload inconsistency\n");
+        free_packet(p);
+        free(buf);
+        return -1;
+    }
+
+    free_packet(p);
+    free(buf);
+    return 0;
+}
+
 int test_calculate_crc()
 {
+    fprintf(stdout, "testing crc calculation\n");
     uint8_t *data = malloc(8);
     uint16_t hand_calculated_crc = 0x97DF;
     memset(data, 0xFF, 8);
@@ -22,10 +141,11 @@ int test_calculate_crc()
     return 0;
 }
 
-
-
 int main()
 {
+
     assert(test_calculate_crc() == 0);
+    assert(test_packet_to_bytestream() == 0);
+    assert(test_parse_packet() == 0);
     return 0;
 }

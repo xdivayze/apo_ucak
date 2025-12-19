@@ -75,17 +75,18 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     memcpy(&crc, &(packet_data_raw[idx]), crc_length);
     idx += crc_length;
 
+    p->ack_id = ack_id;
     p->CRC = crc;
     p->dest_address = dest_addr;
     p->payload = payload;
     p->payload_length = payload_length;
     p->sequence_number = sequence_number;
     p->src_address = src_addr;
-    p->ack_id = ack_id;
 
     return idx;
 }
 
+//free packet and its payload
 void free_packet(packet *p)
 {
     free(p->payload);
