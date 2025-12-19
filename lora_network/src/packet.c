@@ -1,5 +1,5 @@
 #include "packet.h"
-#include "string.h"
+#include <string.h>
 
 const uint8_t preamble[7] = {'s', 'e', 'j', 'u', 'a', 'n', 'i'};
 const uint8_t SFD = 0b00110011;
@@ -9,19 +9,20 @@ static const size_t crc_length = 2;
 
 static const size_t addr_length = sizeof(uint32_t);
 
-const size_t overhead = sizeof(preamble) + sizeof(SFD) + 2 * addr_length + sizeof(uint32_t) + sizeof(uint8_t) + crc_length;
+const size_t overhead = sizeof(preamble) + sizeof(uint16_t) + sizeof(SFD) + 2 * addr_length + sizeof(uint32_t) + sizeof(uint8_t) + crc_length;
 
 const size_t payload_length_max = 8;
 
 const size_t max_frame_size = payload_length_max + overhead;
 
-packet *packet_constructor(uint32_t dest_address, uint32_t src_address,
+packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
                            uint32_t sequence_number, uint8_t payload_length, uint8_t *payload, uint16_t CRC)
 {
     if (payload_length > payload_length_max)
         return NULL;
 
     packet *p = malloc(sizeof(packet));
+    p->ack_id = ack_id;
     p->CRC = CRC;
     p->dest_address = dest_address;
     p->payload = payload;
@@ -55,6 +56,10 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     memcpy(&src_addr, &(packet_data_raw[idx]), addr_length);
     idx += addr_length;
 
+    uint16_t ack_id;
+    memcpy(&ack_id, &(packet_data_raw[idx]), sizeof(uint16_t));
+    idx += sizeof(uint16_t);
+
     uint32_t sequence_number;
     memcpy(&sequence_number, &(packet_data_raw[idx]), sizeof(sequence_number));
     idx += sizeof(sequence_number);
@@ -76,10 +81,12 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     p->payload_length = payload_length;
     p->sequence_number = sequence_number;
     p->src_address = src_addr;
+    p->ack_id = ack_id;
 
     return idx;
 }
 
+//checks the crc
 int validate_packet(packet *p)
 {
     uint16_t calculated_crc = calculate_crc(p->payload, p->payload_length);
@@ -89,6 +96,7 @@ int validate_packet(packet *p)
 }
 
 // returns -1 on fail; packet size on success
+// writes pkt to buffer if buffer_size > pkt's frame size
 int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt)
 {
 
@@ -104,6 +112,8 @@ int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt)
     idx += addr_length;
     memcpy(&(buffer[idx]), &(pkt->src_address), addr_length);
     idx += addr_length;
+    memcpy(&buffer[idx], &(pkt->ack_id), sizeof(pkt->ack_id));
+    idx += sizeof(pkt->ack_id);
     buffer[idx] = pkt->sequence_number;
     idx += sizeof(pkt->sequence_number);
     buffer[idx] = pkt->payload_length;
@@ -117,6 +127,7 @@ int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt)
     return idx;
 }
 
+//big endian CRC16 ccit false
 uint16_t calculate_crc(uint8_t *data, size_t length)
 {
     uint8_t i;

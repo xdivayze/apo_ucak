@@ -16,6 +16,7 @@ add_library(lora_networking_lib)
 target_sources(lora_networking_lib
     PRIVATE
     src/packet.c
+    src/network_data_operations.c
 )
 
 target_include_directories(lora_networking_lib
