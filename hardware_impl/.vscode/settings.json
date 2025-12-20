@@ -1,0 +1,9 @@
+{
+  "cmake.environment": {
+    "IDF_PATH": "/home/cavej/esp/esp-idf"
+  },
+  "idf.port": "/dev/ttyACM0",
+  "idf.openOcdConfigs": [
+    "board/esp32c3-builtin.cfg"
+  ]
+}
