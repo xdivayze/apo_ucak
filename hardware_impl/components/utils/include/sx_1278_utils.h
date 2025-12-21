@@ -13,8 +13,10 @@ void initialize_sx_1278_utils(spi_device_handle_t spi, size_t ack_timeout_msec, 
 
 esp_err_t initialize_sx_1278();
 
+//send packet. does not concern itself with acks
 esp_err_t send_packet(packet *p);
 
+//read packet, dont send an ack
 esp_err_t read_last_packet(packet *p_out);
 
 // send len packets from p_buf and expect acks and send DONE packet

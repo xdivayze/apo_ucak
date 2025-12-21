@@ -1,6 +1,6 @@
 #include "spi_utils.h"
 
-esp_err_t burst_write_reg(spi_device_handle_t spi, const uint8_t addr, const uint8_t *data, int len)
+esp_err_t spi_burst_write_reg(spi_device_handle_t spi, const uint8_t addr, const uint8_t *data, int len)
 {
     if (len <= 0)
         return ESP_OK;
@@ -21,7 +21,7 @@ esp_err_t burst_write_reg(spi_device_handle_t spi, const uint8_t addr, const uin
     return ret;
 }
 
-esp_err_t burst_read_reg(spi_device_handle_t spi, const uint8_t addr, uint8_t *data, int len)
+esp_err_t spi_burst_read_reg(spi_device_handle_t spi, const uint8_t addr, uint8_t *data, int len)
 {
     if (len <= 0)
         return ESP_OK;
