@@ -1,0 +1,26 @@
+#ifndef SX_1278_UTILS_H
+#define SX_1278_UTILS_H
+
+#include "driver/spi_master.h"
+#include "packet.h"
+
+extern spi_device_handle_t sx_1278_spi;
+
+extern  size_t ack_timeout_msec;
+
+
+void initialize_sx_1278_utils(spi_device_handle_t spi, size_t ack_timeout_msec, float lorawan_bandwidth_center);
+
+esp_err_t initialize_sx_1278();
+
+esp_err_t send_packet(packet *p);
+
+esp_err_t read_last_packet(packet *p_out);
+
+// send len packets from p_buf and expect acks and send DONE packet
+esp_err_t send_burst(const packet **p_buf, const uint8_t len);
+
+// read with successive acks to p_buf until DONE packet and write length to len
+esp_err_t read_burst(packet **p_buf, uint8_t *len);
+
+#endif
