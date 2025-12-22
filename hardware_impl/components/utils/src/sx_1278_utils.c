@@ -12,6 +12,60 @@
 #define lora_bandwidth_khz 125        // table 12 for spreading factor-bandwidth relations
 #define spreading_factor 12
 
+esp_err_t send_burst(packet **p_buf, const int len)
+{
+    packet *curr_packet;
+    esp_err_t ret;
+    uint8_t data = 0;
+    packet *rx_packet = malloc(sizeof(packet));
+    for (int i = 0; i < len; i++)
+    {
+        while (1)
+        {
+            memset(rx_packet, 0, sizeof(*rx_packet));
+            curr_packet = p_buf[i];
+            ret = send_packet(curr_packet, 1);
+
+            if (ret == ESP_ERROR_CHECK_WITHOUT_ABORT(0))
+            {
+                data = 0b10001110;
+                ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1);
+                if (ret != ESP_OK)
+                {
+                    fprintf(stderr, "retry failed when setting sx1278 to rx mode\n");
+                    free_packet(rx_packet);
+                    return ret;
+                }
+            }
+            else if (ret != ESP_OK)
+            {
+                free_packet(rx_packet);
+                return ret;
+            }
+
+            ret = poll_for_irq_flag(1000, 2, 1 << 6);
+            if (ret != ESP_OK) // if polling resulted in rxdone flag not being set retry
+                continue;
+
+            ret = read_last_packet(rx_packet);
+            if (ret != ESP_OK)
+            { // retry if ack packet integrity cannot be verified
+                fprintf(stderr, "ack packet failed to be read, retrying\n");
+                continue;
+            }
+
+            if (rx_packet->payload_length == 0)
+            { // ACK packet
+                break;
+            }
+            else
+                continue; // retry if not ack packet
+        }
+    }
+    free_packet(rx_packet);
+    return ESP_OK;
+}
+
 esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask)
 {
     timeout_ms = (timeout_ms <= 0) ? 3000 : timeout_ms;
@@ -49,8 +103,8 @@ esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t 
     }
 }
 
-// puts into standby and returns back to standby. internally calls packet_to_bytestream() function
-esp_err_t send_packet(packet *p)
+// puts into standby and returns back to standby if switch_to_rx_after_tx is not set. internally calls packet_to_bytestream() function
+esp_err_t send_packet(packet *p, int switch_to_rx_after_tx)
 {
     static uint8_t tx_buffer[255];
     uint8_t data = 0b10001001;
@@ -79,7 +133,7 @@ esp_err_t send_packet(packet *p)
 
     uint8_t packet_size_byte = (uint8_t)(packet_size & 0xFF);
 
-    ret = spi_burst_write_reg(sx_1278_spi, 0x22, &packet_size_byte, 1);         // write payload length
+    ret = spi_burst_write_reg(sx_1278_spi, 0x22, &packet_size_byte, 1);        // write payload length
     ret = spi_burst_write_reg(sx_1278_spi, 0x00, tx_buffer, packet_size_byte); // write payload
     if (ret != ESP_OK)
     {
@@ -115,12 +169,12 @@ esp_err_t send_packet(packet *p)
     data = 0xFF;
     spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
 
-    data = 0b10001001;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
+    data = switch_to_rx_after_tx ? 0b10001110 : 0b10001001;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in next mode
 
     if (ret != ESP_OK)
     {
-        fprintf(stderr, "couldnt put sx1278 in standby mode after tx is complete\n");
+        fprintf(stderr, "couldnt put sx1278 innext mode after tx is complete\n");
         return ESP_ERROR_CHECK_WITHOUT_ABORT(0);
     }
 

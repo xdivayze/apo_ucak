@@ -12,7 +12,7 @@ extern const uint16_t crc16_polynomial;
 extern const size_t payload_length_max;
 extern const size_t overhead;
 extern const size_t max_frame_size;
-typedef struct
+typedef struct //TODO remove CRC
 {
     uint32_t dest_address;
     uint32_t src_address;

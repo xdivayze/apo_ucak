@@ -6,8 +6,7 @@
 
 extern spi_device_handle_t sx_1278_spi;
 
-extern  size_t ack_timeout_msec;
-
+extern size_t ack_timeout_msec;
 
 void initialize_sx_1278_utils(spi_device_handle_t spi, size_t ack_timeout_msec, float lorawan_bandwidth_center);
 
@@ -15,16 +14,16 @@ esp_err_t initialize_sx_1278();
 
 esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask);
 
-//send packet. does not concern itself with acks
-esp_err_t send_packet(packet *p);
+// send packet. does not concern itself with acks
+esp_err_t send_packet(packet *p, int switch_to_rx_after_tx);
 
-//read packet, dont send an ack
+// read packet, dont send an ack
 esp_err_t read_last_packet(packet *p_out);
 
 // send len packets from p_buf and expect acks and send DONE packet
-esp_err_t send_burst(const packet **p_buf, const uint8_t len);
+esp_err_t send_burst(packet **p_buf, const int len);
 
 // read with successive acks to p_buf until DONE packet and write length to len
-esp_err_t read_burst(packet **p_buf, uint8_t *len);
+esp_err_t read_burst(packet **p_buf, int *len);
 
 #endif

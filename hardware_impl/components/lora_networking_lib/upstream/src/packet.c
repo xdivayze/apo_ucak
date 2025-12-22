@@ -86,10 +86,11 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     return idx;
 }
 
-//free packet and its payload
+// free packet and its payload
 void free_packet(packet *p)
 {
-    free(p->payload);
+    if (p->payload)
+        free(p->payload);
     free(p);
 }
 
