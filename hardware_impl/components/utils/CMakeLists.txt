@@ -7,6 +7,7 @@ idf_component_register(
     REQUIRES 
     esp_driver_spi
     lora_networking_lib
+    esp_timer
 
 )
 

@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string.h>
 #include "esp_err.h"
+#include "esp_timer.h"
 
 #define FXOSC 32000000UL
 
@@ -11,6 +12,44 @@
 #define lora_bandwidth_khz 125        // table 12 for spreading factor-bandwidth relations
 #define spreading_factor 12
 
+esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask)
+{
+    timeout_ms = (timeout_ms <= 0) ? 3000 : timeout_ms;
+    poll_interval_ms = (poll_interval_ms <= 0) ? 2 : poll_interval_ms;
+
+    const int64_t start = esp_timer_get_time();
+    const int64_t timeout_us = (int64_t)timeout_ms * 1000;
+
+    uint8_t irq = 0;
+    esp_err_t ret;
+
+    int64_t elapsed_us = 0;
+
+    while (1)
+    {
+        ret = spi_burst_read_reg(sx_1278_spi, 0x12, &irq, 1);
+        if (ret != ESP_OK)
+        {
+            fprintf(stderr, "couldnt read irq register\n");
+            return ret;
+        }
+        if (irq & irq_and_mask)
+        {
+            return ESP_OK;
+        }
+
+        elapsed_us = esp_timer_get_time() - start;
+        if (elapsed_us > timeout_us)
+        {
+            fprintf(stderr, "polling timeout");
+            return ESP_ERR_TIMEOUT;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+    }
+}
+
+// puts into standby and returns back to standby. internally calls packet_to_bytestream() function
 esp_err_t send_packet(packet *p)
 {
     static uint8_t tx_buffer[255];
@@ -31,7 +70,7 @@ esp_err_t send_packet(packet *p)
         return ret;
     }
 
-    int packet_size = packet_to_bytestream(&tx_buffer, sizeof(tx_buffer), p);
+    int packet_size = packet_to_bytestream(tx_buffer, sizeof(tx_buffer), p);
     if (packet_size == -1)
     {
         fprintf(stderr, "couldnt convert packet to bytesteam\n");
@@ -41,7 +80,7 @@ esp_err_t send_packet(packet *p)
     uint8_t packet_size_byte = (uint8_t)(packet_size & 0xFF);
 
     ret = spi_burst_write_reg(sx_1278_spi, 0x22, &packet_size_byte, 1);         // write payload length
-    ret = spi_burst_write_reg(sx_1278_spi, 0x00, &tx_buffer, packet_size_byte); // write payload
+    ret = spi_burst_write_reg(sx_1278_spi, 0x00, tx_buffer, packet_size_byte); // write payload
     if (ret != ESP_OK)
     {
         fprintf(stderr, "couldnt write packet to tx fifo\n");
@@ -76,8 +115,8 @@ esp_err_t send_packet(packet *p)
     data = 0xFF;
     spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
 
-    uint8_t data = 0b10001001;
-    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
+    data = 0b10001001;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
 
     if (ret != ESP_OK)
     {
