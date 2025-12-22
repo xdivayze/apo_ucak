@@ -3,12 +3,90 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include "esp_err.h"
 
 #define FXOSC 32000000UL
 
 #define lora_frequency_lf 410000000UL // datasheet table 32 for frequency bands
 #define lora_bandwidth_khz 125        // table 12 for spreading factor-bandwidth relations
 #define spreading_factor 12
+
+esp_err_t send_packet(packet *p)
+{
+    static uint8_t tx_buffer[255];
+    uint8_t data = 0b10001001;
+    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
+    if (ret != ESP_OK)
+    {
+        fprintf(stderr, "couldnt put sx1278 in standby mode\n");
+        return ret;
+    }
+
+    data = 0x00;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1); // set fifo base pointer
+    ret = spi_burst_write_reg(sx_1278_spi, 0x0D, &data, 1); // set fifo pointer
+    if (ret != ESP_OK)
+    {
+        fprintf(stderr, "couldnt set fifo address\n");
+        return ret;
+    }
+
+    int packet_size = packet_to_bytestream(&tx_buffer, sizeof(tx_buffer), p);
+    if (packet_size == -1)
+    {
+        fprintf(stderr, "couldnt convert packet to bytesteam\n");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint8_t packet_size_byte = (uint8_t)(packet_size & 0xFF);
+
+    ret = spi_burst_write_reg(sx_1278_spi, 0x22, &packet_size_byte, 1);         // write payload length
+    ret = spi_burst_write_reg(sx_1278_spi, 0x00, &tx_buffer, packet_size_byte); // write payload
+    if (ret != ESP_OK)
+    {
+        fprintf(stderr, "couldnt write packet to tx fifo\n");
+        return ret;
+    }
+
+    data = 0xFF;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
+    if (ret != ESP_OK)
+    {
+
+        fprintf(stderr, "couldnt reset irq flags\n");
+        return ret;
+    }
+
+    data = 0b10001011;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in TX mode
+    if (ret != ESP_OK)
+    {
+
+        fprintf(stderr, "couldnt switch to transmit mode\n");
+        return ret;
+    }
+
+    ret = poll_for_irq_flag(3000, 3, (1 << 3)); // poll until tx done flag is set
+    if (ret != ESP_OK)
+    {
+        fprintf(stderr, "failed while polling for irq tx done flag\n");
+        return ret;
+    }
+
+    data = 0xFF;
+    spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
+
+    uint8_t data = 0b10001001;
+    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
+
+    if (ret != ESP_OK)
+    {
+        fprintf(stderr, "couldnt put sx1278 in standby mode after tx is complete\n");
+        return ESP_ERROR_CHECK_WITHOUT_ABORT(0);
+    }
+
+    return ESP_OK;
+}
 
 esp_err_t read_last_packet(packet *p)
 {
@@ -74,7 +152,7 @@ esp_err_t read_last_packet(packet *p)
         fprintf(stderr, "packet couldnt be parsed, discarding packet\n");
         data = 0xFF;
         ret = spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-        memset(rx_buffer, 0x00, sizeof(rx_buffer));               // fill rx buffer with zeros
+        memset(rx_buffer, 0x00, sizeof(rx_buffer));                // fill rx buffer with zeros
 
         return ESP_ERR_INVALID_STATE;
     }

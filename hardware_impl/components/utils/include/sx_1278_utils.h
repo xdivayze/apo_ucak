@@ -13,6 +13,8 @@ void initialize_sx_1278_utils(spi_device_handle_t spi, size_t ack_timeout_msec, 
 
 esp_err_t initialize_sx_1278();
 
+esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask);
+
 //send packet. does not concern itself with acks
 esp_err_t send_packet(packet *p);
 
