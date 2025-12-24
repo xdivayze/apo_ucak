@@ -12,7 +12,15 @@ extern const uint16_t crc16_polynomial;
 extern const size_t payload_length_max;
 extern const size_t overhead;
 extern const size_t max_frame_size;
-typedef struct //TODO remove CRC
+typedef enum
+{
+    PACKET_ACK = 0, //payload length is 0 and sequence number is non zero
+    PACKET_BEGIN = 1, //payload length and sequence number is 0
+    PACKET_END = 2, //payload length is uint32_max
+    PACKET_DATA = 3, 
+} packet_types;
+
+typedef struct // TODO remove CRC
 {
     uint32_t dest_address;
     uint32_t src_address;
@@ -22,6 +30,9 @@ typedef struct //TODO remove CRC
     uint8_t *payload;
     uint16_t CRC;
 } packet;
+
+packet *ack_packet(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
+                   uint32_t sequence_number);
 
 packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
                            uint32_t sequence_number, uint8_t payload_length, uint8_t *payload, uint16_t CRC);
