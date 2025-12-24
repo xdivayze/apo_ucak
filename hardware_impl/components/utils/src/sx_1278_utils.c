@@ -10,9 +10,18 @@
 #define FXOSC 32000000UL
 
 #define lora_frequency_lf 410000000UL // datasheet table 32 for frequency bands
-#define lora_bandwidth_hz 125000UL        // table 12 for spreading factor-bandwidth relations
+#define lora_bandwidth_hz 125000UL    // table 12 for spreading factor-bandwidth relations
 #define spreading_factor 12
-
+static packet_types check_packet_type(packet *p)
+{
+    if ((p->sequence_number == 0) && (p->payload_length == 0))
+        return PACKET_BEGIN;
+    if (p->payload_length == 0)
+        return PACKET_ACK;
+    if ((p->sequence_number == UINT32_MAX) && (p->payload_length == 0))
+        return PACKET_END;
+    return PACKET_DATA;
+}
 static bool check_packet_features(packet *p, uint32_t src_addr, uint32_t dest_addr, uint16_t ack_id, uint32_t sequence_number, packet_types packet_type)
 {
     if (p->src_address != src_addr)
@@ -26,17 +35,6 @@ static bool check_packet_features(packet *p, uint32_t src_addr, uint32_t dest_ad
     if (check_packet_type(p) != packet_type)
         return false;
     return true;
-}
-
-static packet_types check_packet_type(packet *p)
-{
-    if ((p->sequence_number == 0) && (p->payload_length == 0))
-        return PACKET_BEGIN;
-    if (p->payload_length == 0)
-        return PACKET_ACK;
-    if (p->payload_length == UINT32_MAX)
-        return PACKET_END;
-    return PACKET_DATA;
 }
 
 // read from BEGIN to END packets sending ACKs in between

@@ -4,26 +4,22 @@
 const uint8_t preamble[7] = {'s', 'e', 'j', 'u', 'a', 'n', 'i'};
 const uint8_t SFD = 0b00110011;
 
-const uint16_t crc16_polynomial = 0x1021;
-static const size_t crc_length = 2;
-
 static const size_t addr_length = sizeof(uint32_t);
 
-const size_t overhead = sizeof(preamble) + sizeof(uint16_t) + sizeof(SFD) + 2 * addr_length + sizeof(uint32_t) + sizeof(uint8_t) + crc_length;
+const size_t overhead = sizeof(preamble) + sizeof(uint16_t) + sizeof(SFD) + 2 * addr_length + sizeof(uint32_t) + sizeof(uint8_t);
 
 const size_t payload_length_max = 8;
 
 const size_t max_frame_size = payload_length_max + overhead;
 
 packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
-                           uint32_t sequence_number, uint8_t payload_length, uint8_t *payload, uint16_t CRC)
+                           uint32_t sequence_number, uint8_t payload_length, uint8_t *payload)
 {
     if (payload_length > payload_length_max)
         return NULL;
 
     packet *p = malloc(sizeof(packet));
     p->ack_id = ack_id;
-    p->CRC = CRC;
     p->dest_address = dest_address;
     p->payload = payload;
     p->payload_length = payload_length;
@@ -71,12 +67,8 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     memcpy(payload, &(packet_data_raw[idx]), payload_length);
     idx += payload_length;
 
-    uint16_t crc;
-    memcpy(&crc, &(packet_data_raw[idx]), crc_length);
-    idx += crc_length;
 
     p->ack_id = ack_id;
-    p->CRC = crc;
     p->dest_address = dest_addr;
     p->payload = payload;
     p->payload_length = payload_length;
@@ -92,15 +84,6 @@ void free_packet(packet *p)
     if (p->payload)
         free(p->payload);
     free(p);
-}
-
-// checks the crc
-int validate_packet(packet *p)
-{
-    uint16_t calculated_crc = calculate_crc(p->payload, p->payload_length);
-    if (calculated_crc != p->CRC)
-        return -1;
-    return 0;
 }
 
 // returns -1 on fail; packet size on success
@@ -129,22 +112,6 @@ int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt)
 
     memcpy(&(buffer[idx]), pkt->payload, pkt->payload_length);
     idx += pkt->payload_length;
-    memcpy(&(buffer[idx]), &(pkt->CRC), crc_length);
-    idx += crc_length;
 
     return idx;
-}
-
-// big endian CRC16 ccit false
-uint16_t calculate_crc(uint8_t *data, size_t length)
-{
-    uint8_t i;
-    uint16_t wCrc = 0xffff;
-    while (length--)
-    {
-        wCrc ^= *(unsigned char *)data++ << 8;
-        for (i = 0; i < 8; i++)
-            wCrc = wCrc & 0x8000 ? (wCrc << 1) ^ crc16_polynomial : wCrc << 1;
-    }
-    return wCrc & 0xffff;
 }

@@ -16,11 +16,9 @@ int test_parse_packet()
     uint8_t *payload = malloc(payload_length);
     memset(payload, 0xFF, payload_length);
 
-    uint16_t crc = calculate_crc(payload, payload_length);
-
     uint8_t *buf = malloc(max_frame_size);
 
-    packet *p = packet_constructor(dest_addr, source_addr, ack_id, sequence_number, payload_length, payload, crc);
+    packet *p = packet_constructor(dest_addr, source_addr, ack_id, sequence_number, payload_length, payload);
 
     int result = packet_to_bytestream(buf, max_frame_size, p);
 
@@ -29,15 +27,6 @@ int test_parse_packet()
     if (parse_result == -1)
     {
         fprintf(stderr, "parser returned -1\n");
-        free_packet(p);
-        free_packet(callback_p);
-        free(buf);
-        return -1;
-    }
-
-    if (validate_packet(callback_p))
-    {
-        fprintf(stderr, "payload inconsistency\n");
         free_packet(p);
         free_packet(callback_p);
         free(buf);
@@ -71,11 +60,9 @@ int test_packet_to_bytestream()
     uint8_t *payload = malloc(payload_length);
     memset(payload, 0xFF, payload_length);
 
-    uint16_t crc = calculate_crc(payload, payload_length);
-
     uint8_t *buf = malloc(max_frame_size);
 
-    packet *p = packet_constructor(dest_addr, source_addr, ack_id, sequence_number, payload_length, payload, crc);
+    packet *p = packet_constructor(dest_addr, source_addr, ack_id, sequence_number, payload_length, payload);
 
     int result = packet_to_bytestream(buf, max_frame_size, p);
 
@@ -109,42 +96,15 @@ int test_packet_to_bytestream()
         }
     }
 
-    if (validate_packet(p))
-    {
-        fprintf(stderr, "payload inconsistency\n");
-        free_packet(p);
-        free(buf);
-        return -1;
-    }
-
     free_packet(p);
     free(buf);
     return 0;
 }
 
-int test_calculate_crc()
-{
-    fprintf(stdout, "testing crc calculation\n");
-    uint8_t *data = malloc(8);
-    uint16_t hand_calculated_crc = 0x97DF;
-    memset(data, 0xFF, 8);
-    uint16_t calculated_crc = calculate_crc(data, 8);
 
-    if (calculated_crc != hand_calculated_crc)
-    {
-        fprintf(stderr, "calcalated crc:0x%2x do not match the hand calculated crc: 0x%2x\n", calculated_crc, hand_calculated_crc);
-        free(data);
-        return -1;
-    }
-    free(data);
-
-    return 0;
-}
 
 int main()
 {
-
-    assert(test_calculate_crc() == 0);
     assert(test_packet_to_bytestream() == 0);
     assert(test_parse_packet() == 0);
     return 0;
