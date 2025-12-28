@@ -75,49 +75,65 @@ void ws_init(esp_websocket_client_handle_t *ws_client)
     client = ws_client;
 }
 
+static ws_command_struct *ws_data_event_handler(esp_websocket_event_data_t *d)
+{
+    ws_command_struct *ws_cmd = malloc(sizeof(ws_command_struct));
+    ws_command_struct *ret = NULL;
+    if (!ws_cmd)
+    {
+        fprintf(stderr, "no mem\n");
+        return ret;
+    }
+
+    char *buf = malloc(d->data_len + 1);
+    if (!buf)
+    {
+        fprintf(stderr, "no mem\n");
+        goto cleanup;
+    }
+    memcpy(buf, d->data_ptr, d->data_len);
+    memset(&(buf[d->data_len]), '\0', 1);
+
+    if (json_parser(ws_cmd, buf))
+    {
+        fprintf(stderr, "json couldnt be parsed\n");
+        goto cleanup;
+    }
+
+    ret = malloc(sizeof(ws_command_struct));
+    memcpy(ret, ws_cmd, sizeof(ws_command_struct));
+
+cleanup:
+    if (ws_cmd)
+        free(ws_cmd);
+    if (buf)
+        free(buf);
+    return ret;
+}
+
 int ws_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     ws_command_struct *callback_ws_cmd = handler_args;
     esp_websocket_event_data_t *d = event_data;
+
     int ret = -1;
 
     switch (event_id)
     {
     case WEBSOCKET_EVENT_DATA: // extract command and parameters, write to buffer in handler_args
-        ws_command_struct *ws_cmd = malloc(sizeof(ws_command_struct));
+        ws_command_struct *ws_cmd = ws_data_event_handler(d);
         if (!ws_cmd)
         {
-            fprintf(stderr, "no mem\n");
+            fprintf(stderr, "ws data event handler returned NULL\n");
             return -1;
         }
 
-        char *buf = malloc(d->data_len + 1);
-        if (!buf)
-        {
-            fprintf(stderr, "no mem\n");
-            goto cleanup;
-        }
-        memcpy(buf, event_data, d->data_len);
-        memset(&(buf[d->data_len]), '\0', 1);
-
-        if (json_parser(ws_cmd, buf))
-        {
-            fprintf(stderr, "json couldnt be parsed\n");
-            goto cleanup;
-        }
-
         memcpy(callback_ws_cmd, ws_cmd, sizeof(ws_command_struct));
-        ret = 0;
-
-    cleanup:
-        if (ws_cmd)
-            free(ws_cmd);
-        if (buf)
-            free(buf);
-        return ret;
-
+        free(ws_cmd);
+        break;
     default:
         return -1;
         break;
     }
+    return 0;
 }
