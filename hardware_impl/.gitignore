@@ -1,2 +1,4 @@
 /**/*build
 components/lora_networking_lib/upstream/tests/Testing
+managed_components
+dependencies.lock
