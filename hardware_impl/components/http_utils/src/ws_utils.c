@@ -4,11 +4,7 @@
 #include <stdlib.h>
 static esp_websocket_client_handle_t *client = NULL;
 
-typedef struct
-{
-    uint8_t command;
-    uint32_t params;
-} ws_command_struct;
+
 
 static int json_parser(ws_command_struct *cmd, const char *data)
 {
@@ -115,8 +111,6 @@ int ws_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id
 {
     ws_command_struct *callback_ws_cmd = handler_args;
     esp_websocket_event_data_t *d = event_data;
-
-    int ret = -1;
 
     switch (event_id)
     {

@@ -8,6 +8,6 @@ idf_component_register(
 
 
 target_compile_options(${COMPONENT_LIB} PRIVATE
-    -Wall -Wextra -Wpedantic -g -O0
+    -Wall -Wextra  -g -O0
 )
 

@@ -12,6 +12,7 @@ const size_t payload_length_max = 8;
 
 const size_t max_frame_size = payload_length_max + overhead;
 
+//does not allocate payload 
 packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
                            uint32_t sequence_number, uint8_t payload_length, uint8_t *payload)
 {

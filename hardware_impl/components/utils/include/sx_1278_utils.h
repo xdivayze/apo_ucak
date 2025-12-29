@@ -20,9 +20,9 @@ esp_err_t send_packet(packet *p, int switch_to_rx_after_tx);
 // read packet, dont send an ack
 esp_err_t read_last_packet(packet *p_out);
 
-// send len packets from p_buf and expect acks and send DONE packet
+// send len packets from p_buf and expect acks.
 esp_err_t send_burst(packet **p_buf, const int len);
 
-// read with successive acks to p_buf until DONE packet and write length to len
+// read with successive acks to p_buf from BEGIN until DONE packet and write length to len
 esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t host_addr);
 #endif

@@ -27,6 +27,6 @@ set(COMPILE_OPTIONS_DEBUG
 
 target_compile_options(lora_networking_lib
     PRIVATE
-    -Wall -Wextra -Wpedantic
+    -Wall -Wextra 
     ${COMPILE_OPTIONS_DEBUG}
 )
