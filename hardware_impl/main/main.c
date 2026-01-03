@@ -1,52 +1,76 @@
-/*
- * SPDX-FileCopyrightText: 2010-2022 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: CC0-1.0
- */
+// PIN DEFINITIONS FOR QFN40
+#include "spi_utils.h"
+#include "sx_1278_utils.h"
+#include "esp_log.h"
+#include "esp_err.h"
+#include "driver/gpio.h"
+#define SX_NSS GPIO_NUM_18
+#define SX_SCK GPIO_NUM_14
+#define SX_MISO GPIO_NUM_3
+#define SX_MOSI GPIO_NUM_4
 
-#include <stdio.h>
-#include <inttypes.h>
-#include "sdkconfig.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_chip_info.h"
-#include "esp_flash.h"
-#include "esp_system.h"
+#define SX_SPI_CLOCK_SPEED 10000
+
+spi_device_handle_t sx_1278_spi;
+#define LORA_SPI_HOST SPI2_HOST
+
+#define TAG "main"
+
+static esp_err_t add_lora_device()
+{
+    spi_device_interface_config_t devcfg = {
+        .clock_speed_hz = SX_SPI_CLOCK_SPEED,
+        .mode = 0,
+        .spics_io_num = SX_NSS,
+        .queue_size = 4,
+        .flags = 0,
+        .command_bits = 0,
+        .address_bits = 0,
+        .dummy_bits = 0,
+    };
+
+    esp_err_t ret = spi_bus_add_device(SPI2_HOST, &devcfg, &sx_1278_spi);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt add device to spi bus\n");
+    }
+
+    return ret;
+}
+
+static esp_err_t spi_init()
+{
+
+    spi_bus_config_t buscfg = {
+        .miso_io_num = SX_MISO,
+        .mosi_io_num = SX_MOSI,
+        .sclk_io_num = SX_SCK,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 0,
+    };
+
+    esp_err_t ret = spi_bus_initialize(LORA_SPI_HOST, &buscfg, SPI_DMA_DISABLED);
+    if (ret != ESP_OK)
+        ESP_LOGE(TAG, "couldnt initialize spi bus\n");
+    return ret;
+}
 
 void app_main(void)
 {
-    printf("Hello world!\n");
 
-    /* Print chip information */
-    esp_chip_info_t chip_info;
-    uint32_t flash_size;
-    esp_chip_info(&chip_info);
-    printf("This is %s chip with %d CPU core(s), %s%s%s%s, ",
-           CONFIG_IDF_TARGET,
-           chip_info.cores,
-           (chip_info.features & CHIP_FEATURE_WIFI_BGN) ? "WiFi/" : "",
-           (chip_info.features & CHIP_FEATURE_BT) ? "BT" : "",
-           (chip_info.features & CHIP_FEATURE_BLE) ? "BLE" : "",
-           (chip_info.features & CHIP_FEATURE_IEEE802154) ? ", 802.15.4 (Zigbee/Thread)" : "");
+    ESP_LOGI(TAG, "init.. gg\n");
 
-    unsigned major_rev = chip_info.revision / 100;
-    unsigned minor_rev = chip_info.revision % 100;
-    printf("silicon revision v%d.%d, ", major_rev, minor_rev);
-    if(esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
-        printf("Get flash size failed");
-        return;
+    ESP_ERROR_CHECK(spi_init());
+    ESP_ERROR_CHECK(add_lora_device());
+
+    esp_err_t ret;
+    
+    ESP_ERROR_CHECK(initialize_sx_1278());
+    while (1)
+    {
+
+        ESP_LOGI(TAG, "sx1278 initialized\n");
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
-
-    printf("%" PRIu32 "MB %s flash\n", flash_size / (uint32_t)(1024 * 1024),
-           (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
-
-    printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
-
-    for (int i = 10; i >= 0; i--) {
-        printf("Restarting in %d seconds...\n", i);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-    printf("Restarting now.\n");
-    fflush(stdout);
-    esp_restart();
 }

@@ -9,9 +9,9 @@
 
 #define FXOSC 32000000UL
 
-#define lora_frequency_lf 410000000UL // datasheet table 32 for frequency bands
-#define lora_bandwidth_hz 125000UL    // table 12 for spreading factor-bandwidth relations
-#define spreading_factor 12
+#define lora_frequency_lf 866000000 // datasheet table 32 for frequency bands
+#define lora_bandwidth_hz 62500     // table 12 for spreading factor-bandwidth relations
+#define spreading_factor 6
 static packet_types check_packet_type(packet *p)
 {
     if ((p->sequence_number == 0) && (p->payload_length == 0))
@@ -55,7 +55,7 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
     for (int i = 0; i < repeat; i++)
     {
 
-        ret = poll_for_irq_flag(2000, 2, 1 << 6, false);
+        ret = poll_for_irq_flag(2000, 2, 1 << 6, false); // poll until packet received
         if (ret != ESP_OK)
             continue;
         data = 0b10001001;
@@ -307,7 +307,7 @@ esp_err_t send_packet(packet *p, int switch_to_rx_after_tx)
 
     if (ret != ESP_OK)
     {
-        fprintf(stderr, "couldnt put sx1278 innext mode after tx is complete\n");
+        fprintf(stderr, "couldnt put sx1278 in next mode after tx is complete\n");
         return ESP_ERROR_CHECK_WITHOUT_ABORT(0);
     }
 
@@ -316,6 +316,7 @@ esp_err_t send_packet(packet *p, int switch_to_rx_after_tx)
 
 // uses irq flags to check if rxdone is set but does not poll for the flag. for polling use poll_for_irq_flag
 // resets irq
+// assumes standby mode
 esp_err_t read_last_packet(packet *p)
 {
     static uint8_t rx_buffer[255];
@@ -396,7 +397,7 @@ esp_err_t read_last_packet(packet *p)
 esp_err_t initialize_sx_1278()
 {
     uint8_t data = 0;
-    esp_err_t ret = spi_burst_read_reg(sx_1278_spi, 0x42, &data, 1); // register version
+    ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x42, &data, 1)); // register version
     if (data != 0x12)
     {
         fprintf(stderr, "sx1278 register version is not valid");
@@ -404,50 +405,50 @@ esp_err_t initialize_sx_1278()
     }
 
     data = 0b10001000;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set sleep mode
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1)); // set sleep mode
 
     data = 0x00;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x0F, &data, 1); // set rx fifo addr
-    ret = spi_burst_write_reg(sx_1278_spi, 0x0D, &data, 1); // set fifo ptr addr
-    ret = spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1); // set tx fifo addr
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0D, &data, 1)); // set fifo ptr addr
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0F, &data, 1)); // set rx fifo addr
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1)); // set tx fifo addr
 
     data = 0b10001001;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set stdby mode
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1)); // set stdby mode
 
     uint32_t frf = (((uint64_t)(lora_frequency_lf + lora_bandwidth_hz / 2)) << 19) / FXOSC;
     data = (frf >> 16) & 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x06, &data, 1); // send frf big endian
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x06, &data, 1)); // send frf big endian
     data = (frf >> 8) & 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x07, &data, 1);
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x07, &data, 1));
     data = (frf) & 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x08, &data, 1);
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x08, &data, 1));
 
-    data = 0xFC;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x09, &data, 1); // power
+    data = 0b11111100;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x09, &data, 1)); // power
 
     data = 0x0A;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x2B, &data, 1); // OCB
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x2B, &data, 1)); // OCB
 
     data = 0x84;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x4D, &data, 1); // max power
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x4D, &data, 1)); // max power
 
-    data = 0b10000010;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x1D, &data, 1); // 250kHz 4/5 coding explicit headers
+    data = 0b01100010;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1D, &data, 1)); // 62.5 4/5 coding explicit headers
 
-    data = 0b11000100;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x1E, &data, 1); // 12 spreading factor, single packet mode , crc on, 0xFF symbtimeout
+    data = 0b01100100;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1E, &data, 1)); //  spreading factor, single packet mode , crc on, 0xFF symbtimeout
 
     data = 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x1F, &data, 1); // 0xFF symbtimeout
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1F, &data, 1)); // 0xFF symbtimeout
 
     data = 0x00;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x20, &data, 1); // preamble length msb and lsb
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x20, &data, 1)); // preamble length msb and lsb
     data = 0x08;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x21, &data, 1);
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x21, &data, 1));
 
     data = SFD;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x39, &data, 1); // sync word
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x39, &data, 1)); // sync word
     // TODO dio pin configuration
 
-    return ret;
+    return ESP_OK;
 }

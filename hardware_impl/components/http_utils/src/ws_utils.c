@@ -5,7 +5,7 @@
 static esp_websocket_client_handle_t *client = NULL;
 
 
-
+//requires data to have \0 at end
 static int json_parser(ws_command_struct *cmd, const char *data)
 {
     int ret = -1;

@@ -3,6 +3,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+int packet_array_to_data(packet ** p_buf, uint8_t* data, int len) {
+    size_t size = 0;
+    for (int i = 0; i<len; i++) {
+        size+=p_buf[i]->payload_length;
+    }
+
+    return 0;
+    
+}
+
 // assumes necessary bytes for callback_buf are allocated and consumes data
 // this function stores all packets in heap memory!! DO NOT USE FOR LARGE DATA
 int data_to_packet_array(packet **callback_buf, uint8_t *data, int data_len,
