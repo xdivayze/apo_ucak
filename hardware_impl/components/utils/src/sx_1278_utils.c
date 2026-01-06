@@ -6,12 +6,22 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 #include <stdbool.h>
+#include "esp_log.h"
+
+#define TAG "sx_1278_utils"
 
 #define FXOSC 32000000UL
 
-#define lora_frequency_lf 866000000 // datasheet table 32 for frequency bands
-#define lora_bandwidth_hz 62500     // table 12 for spreading factor-bandwidth relations
-#define spreading_factor 6
+#define lora_frequency_lf 863000000 // datasheet table 32 for frequency bands
+#define lora_frequency_hf 865000000
+static uint32_t lora_bandwidth_hz = 125000; // table 12 for spreading factor-bandwidth relations
+static uint8_t spreading_factor = 12;
+
+static inline size_t calculate_n_channels()
+{
+    return (size_t)floor((lora_frequency_hf - lora_frequency_lf - 2 * lora_bandwidth_hz) / lora_bandwidth_hz);
+}
+
 static packet_types check_packet_type(packet *p)
 {
     if ((p->sequence_number == 0) && (p->payload_length == 0))
@@ -394,6 +404,87 @@ esp_err_t read_last_packet(packet *p)
     return ret;
 }
 
+esp_err_t sx_1278_switch_to_nth_channel(size_t n)
+{
+
+    uint64_t raw_freq = (uint64_t)(lora_frequency_lf + n * lora_bandwidth_hz + lora_bandwidth_hz / 2);
+    uint32_t frf = ((raw_freq) << 19) / FXOSC;
+    if (n > calculate_n_channels())
+        return ESP_ERR_INVALID_ARG;
+    uint8_t data = (frf >> 16) & 0xFF;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x06, &data, 1)); // send frf big endian
+    data = (frf >> 8) & 0xFF;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x07, &data, 1));
+    data = (frf) & 0xFF;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x08, &data, 1));
+
+    return ESP_OK;
+}
+
+esp_err_t sx_1278_set_spreading_factor(uint8_t sf)
+{
+
+    if (sf < 6 || sf > 12)
+        return ESP_ERR_INVALID_ARG;
+
+    uint8_t data = 0b00000100;
+    data |= sf << 4;
+    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x1E, &data, 1);
+    if (ret == ESP_OK)
+        spreading_factor = sf;
+    return ret;
+}
+
+#define RSSI_READ_DELAY_MS 5
+
+// switching to FSK/OOK mode discondifures lora. be sure te recall sx_1278_init()
+esp_err_t sx_1278_get_channel_rssis(double *rssi_data)
+{
+    uint8_t data = 0b00001101;
+    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set rx mode on fsk
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt set rx mode on fsk\n");
+        return ret;
+    }
+    size_t channel_n = calculate_n_channels();
+    double temp_rssi_arr[255] = {0};
+    uint8_t ret_data;
+
+    for (size_t i = 0; i < channel_n; i++)
+    {
+        ret_data = 0;
+        ret = sx_1278_switch_to_nth_channel(i);
+        if (ret != ESP_OK)
+        {
+            if (i == channel_n - 1)
+                ESP_LOGE(TAG, "couldnt switch to channel: %li\n", i);
+            else
+                ESP_LOGE(TAG, "couldnt switch to channel: %li , trying next one\n", i);
+
+            continue;
+        }
+
+        vTaskDelay(pdTICKS_TO_MS(RSSI_READ_DELAY_MS));
+
+        ret = spi_burst_read_reg(sx_1278_spi, 0x11, &ret_data, 1);
+        if (ret != ESP_OK)
+        {
+            if (i == channel_n - 1)
+                ESP_LOGE(TAG, "couldnt read rssi on channel: %li.\n", i);
+            else
+                ESP_LOGE(TAG, "couldnt read rssi on channel: %li. switching to next channel\n", i);
+            continue;
+        }
+
+        temp_rssi_arr[i] = -ret_data / 2.0;
+    }
+
+    memcpy(rssi_data, temp_rssi_arr, channel_n);
+    return ESP_OK;
+}
+
+// settings are done for 25mW = 14dBm
 esp_err_t initialize_sx_1278()
 {
     uint8_t data = 0;
@@ -415,28 +506,21 @@ esp_err_t initialize_sx_1278()
     data = 0b10001001;
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1)); // set stdby mode
 
-    uint32_t frf = (((uint64_t)(lora_frequency_lf + lora_bandwidth_hz / 2)) << 19) / FXOSC;
-    data = (frf >> 16) & 0xFF;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x06, &data, 1)); // send frf big endian
-    data = (frf >> 8) & 0xFF;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x07, &data, 1));
-    data = (frf) & 0xFF;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x08, &data, 1));
+    ESP_ERROR_CHECK(sx_1278_switch_to_nth_channel(0));
 
-    data = 0b11111100;
+    data = 0b11111100;                                                 // Pout = 14dbM
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x09, &data, 1)); // power
 
-    data = 0x0A;
+    data = 0b00101011;                                                 // max current 100mA
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x2B, &data, 1)); // OCB
 
     data = 0x84;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x4D, &data, 1)); // max power
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x4D, &data, 1)); // extra power mode not set
 
-    data = 0b01100010;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1D, &data, 1)); // 62.5 4/5 coding explicit headers
+    data = 0b01110010;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1D, &data, 1)); // 125kHz 4/5 coding explicit headers
 
-    data = 0b01100100;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1E, &data, 1)); //  spreading factor, single packet mode , crc on, 0xFF symbtimeout
+    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(spreading_factor));
 
     data = 0xFF;
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1F, &data, 1)); // 0xFF symbtimeout

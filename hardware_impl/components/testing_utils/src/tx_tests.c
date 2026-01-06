@@ -3,7 +3,7 @@
 #include "esp_random.h"
 #include <string.h>
 #include "sx_1278_utils.h"
-esp_err_t send_single_packet()
+esp_err_t test_send_single_packet()
 {
     uint8_t d[5] = {0};
     memset(d, 0x34, 5);
