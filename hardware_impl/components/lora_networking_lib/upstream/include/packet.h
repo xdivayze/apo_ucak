@@ -4,11 +4,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-extern const uint8_t preamble[7];
-extern const uint8_t SFD;
-
-extern const uint16_t crc16_polynomial;
-
 extern const size_t payload_length_max;
 extern const size_t overhead;
 extern const size_t max_frame_size;

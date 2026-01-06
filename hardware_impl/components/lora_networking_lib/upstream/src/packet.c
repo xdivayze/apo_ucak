@@ -1,12 +1,9 @@
 #include "packet.h"
 #include <string.h>
 
-const uint8_t preamble[7] = {'s', 'e', 'j', 'u', 'a', 'n', 'i'};
-const uint8_t SFD = 0b00110011;
-
 static const size_t addr_length = sizeof(uint32_t);
 
-const size_t overhead = sizeof(preamble) + sizeof(uint16_t) + sizeof(SFD) + 2 * addr_length + sizeof(uint32_t) + sizeof(uint8_t);
+const size_t overhead =  2* addr_length +  sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint8_t);
 
 const size_t payload_length_max = 8;
 
@@ -33,17 +30,6 @@ packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t
 int parse_packet(uint8_t *packet_data_raw, packet *p)
 {
     size_t idx = 0;
-
-    for (size_t i = 0; i < sizeof(preamble); i++)
-    {
-        if (packet_data_raw[idx] != preamble[i])
-            return -1;
-        idx++;
-    }
-
-    if (packet_data_raw[idx] != SFD)
-        return -1;
-    idx++;
 
     uint32_t dest_addr;
     memcpy(&dest_addr, &(packet_data_raw[idx]), addr_length);
@@ -74,7 +60,7 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     p->payload = payload;
     p->payload_length = payload_length;
     p->sequence_number = sequence_number;
-    p->src_address = src_addr;
+    p->src_address = src_addr;  
 
     return idx;
 }
@@ -96,10 +82,6 @@ int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt)
         return -1;
 
     size_t idx = 0;
-    memcpy(&(buffer[0]), preamble, sizeof(preamble));
-    idx += sizeof(preamble);
-    buffer[idx] = SFD;
-    idx += sizeof(SFD);
     memcpy(&(buffer[idx]), &(pkt->dest_address), addr_length);
     idx += addr_length;
     memcpy(&(buffer[idx]), &(pkt->src_address), addr_length);

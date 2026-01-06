@@ -58,9 +58,6 @@ static esp_err_t spi_init()
         ESP_LOGE(TAG, "couldnt initialize spi bus\n");
     return ret;
 }
-//TODO RSSI LBT initialization when the two kiddos are close and same rf RSSI conditions apply for the two 
-//TODO auto channel switching
-// keep track of the bitrate and reduce packet overhead to 8-10 bytes
 void app_main(void)
 {
 

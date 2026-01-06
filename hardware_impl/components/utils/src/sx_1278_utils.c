@@ -437,7 +437,8 @@ esp_err_t sx_1278_set_spreading_factor(uint8_t sf)
 
 #define RSSI_READ_DELAY_MS 5
 
-// switching to FSK/OOK mode discondifures lora. be sure te recall sx_1278_init()
+// switching to FSK/OOK mode discondifures lora. be sure te recall sx_1278_init() again
+//rssi_data gets values in dBm
 esp_err_t sx_1278_get_channel_rssis(double *rssi_data)
 {
     uint8_t data = 0b00001101;

@@ -82,20 +82,6 @@ int test_packet_to_bytestream()
         return -1;
     }
 
-    uint8_t found_preamble[7] = {0};
-    memcpy(found_preamble, buf, 7);
-
-    for (int i = 0; i < 7; i++)
-    {
-        if (preamble[i] != found_preamble[i])
-        {
-            fprintf(stderr, "wrong preamble: %s\n", found_preamble);
-            free_packet(p);
-            free(buf);
-            return -1;
-        }
-    }
-
     free_packet(p);
     free(buf);
     return 0;
