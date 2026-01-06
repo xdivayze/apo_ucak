@@ -17,7 +17,7 @@
 spi_device_handle_t sx_1278_spi;
 #define LORA_SPI_HOST SPI2_HOST
 
-#define TAG "main"
+#define TAG "main v0.0.1"
 
 static esp_err_t add_lora_device()
 {
@@ -53,7 +53,7 @@ static esp_err_t spi_init()
         .max_transfer_sz = 0,
     };
 
-    esp_err_t ret = spi_bus_initialize(LORA_SPI_HOST, &buscfg, SPI_DMA_DISABLED);
+    esp_err_t ret = spi_bus_initialize(LORA_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK)
         ESP_LOGE(TAG, "couldnt initialize spi bus\n");
     return ret;
@@ -70,12 +70,25 @@ void app_main(void)
     ESP_LOGI(TAG, "sx1278 initialized\n");
     uint8_t data = 0;
 
+    double rssi_vals[20] = {0.0};
+    esp_err_t ret;
+    size_t n = 0;
     while (1)
     {
+        ret = sx_1278_get_channel_rssis(rssi_vals, &n);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error while reading rssi channels: %s\n", esp_err_to_name(ret));
+        }
+        for (size_t i = 0; i < n; i++)
+        {
+            ESP_LOGI(TAG, "rssi at channel %zu/%zu: %.2f\n", i, n - 1, rssi_vals[i]);
+        }
+        ESP_ERROR_CHECK(initialize_sx_1278());
         ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x01, &data, 1));
         if (!(data >> 7))
             ESP_LOGE(TAG, "not in lora mode\n");
         ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }

@@ -17,7 +17,7 @@
 static uint32_t lora_bandwidth_hz = 125000; // table 12 for spreading factor-bandwidth relations
 static uint8_t spreading_factor = 12;
 
-static inline size_t calculate_n_channels()
+static inline size_t calculate_channel_num()
 {
     return (size_t)floor((lora_frequency_hf - lora_frequency_lf - 2 * lora_bandwidth_hz) / lora_bandwidth_hz);
 }
@@ -407,10 +407,10 @@ esp_err_t read_last_packet(packet *p)
 esp_err_t sx_1278_switch_to_nth_channel(size_t n)
 {
 
+    if (n >= calculate_channel_num())
+        return ESP_ERR_INVALID_ARG;
     uint64_t raw_freq = (uint64_t)(lora_frequency_lf + n * lora_bandwidth_hz + lora_bandwidth_hz / 2);
     uint32_t frf = ((raw_freq) << 19) / FXOSC;
-    if (n > calculate_n_channels())
-        return ESP_ERR_INVALID_ARG;
     uint8_t data = (frf >> 16) & 0xFF;
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x06, &data, 1)); // send frf big endian
     data = (frf >> 8) & 0xFF;
@@ -435,20 +435,64 @@ esp_err_t sx_1278_set_spreading_factor(uint8_t sf)
     return ret;
 }
 
-#define RSSI_READ_DELAY_MS 5
+#define RSSI_READ_DELAY_MS 20
 
-// switching to FSK/OOK mode discondifures lora. be sure te recall sx_1278_init() again
-//rssi_data gets values in dBm
-esp_err_t sx_1278_get_channel_rssis(double *rssi_data)
+static esp_err_t switch_to_fsk()
 {
-    uint8_t data = 0b00001101;
+    uint8_t data = 0b10000000;
     esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set rx mode on fsk
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt set sleep mode on lora\n");
+        return ret;
+    }
+
+    data = 0x00;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set sleep mode on fsk
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt set sleep mode on fsk\n");
+        return ret;
+    }
+
+    data = 0b00001101;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set rx mode on fsk
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "couldnt set rx mode on fsk\n");
         return ret;
     }
-    size_t channel_n = calculate_n_channels();
+
+    ret = spi_burst_read_reg(sx_1278_spi, 0x01, &data, 1);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt read operation mode register\n");
+        return ret;
+    }
+    if (data >> 7)
+    {
+        ESP_LOGE(TAG, "operational mode stuck at lora\n");
+        return ret;
+    }
+
+    return ret;
+}
+
+// switching to FSK/OOK mode discondifures lora. be sure te recall sx_1278_init() again
+// rssi_data gets values in dBm
+esp_err_t sx_1278_get_channel_rssis(double *rssi_data, size_t *len)
+{
+
+    esp_err_t ret;
+
+    ret = switch_to_fsk();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt switch to fsk mode\n");
+        return ret;
+    }
+
+    size_t channel_n = calculate_channel_num();
     double temp_rssi_arr[255] = {0};
     uint8_t ret_data;
 
@@ -466,7 +510,7 @@ esp_err_t sx_1278_get_channel_rssis(double *rssi_data)
             continue;
         }
 
-        vTaskDelay(pdTICKS_TO_MS(RSSI_READ_DELAY_MS));
+        vTaskDelay(pdMS_TO_TICKS(RSSI_READ_DELAY_MS));
 
         ret = spi_burst_read_reg(sx_1278_spi, 0x11, &ret_data, 1);
         if (ret != ESP_OK)
@@ -480,8 +524,9 @@ esp_err_t sx_1278_get_channel_rssis(double *rssi_data)
 
         temp_rssi_arr[i] = -ret_data / 2.0;
     }
+    *len = channel_n;
 
-    memcpy(rssi_data, temp_rssi_arr, channel_n);
+    memcpy(rssi_data, temp_rssi_arr, channel_n * sizeof(double));
     return ESP_OK;
 }
 

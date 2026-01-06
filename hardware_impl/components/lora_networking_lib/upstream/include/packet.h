@@ -7,6 +7,9 @@
 extern const size_t payload_length_max;
 extern const size_t overhead;
 extern const size_t max_frame_size;
+
+#define SFD 0b11010011;
+
 typedef enum
 {
     PACKET_ACK = 0, //payload length is 0 and sequence number is non zero

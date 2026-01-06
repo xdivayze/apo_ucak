@@ -2,6 +2,7 @@
 #include "cJSON.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include "command.h"
 static esp_websocket_client_handle_t *client = NULL;
 
 
