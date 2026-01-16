@@ -4,6 +4,7 @@ idf_component_register(
     SRCS
     "src/spi_utils.c"
     "src/sx_1278_utils.c"
+    "src/sx_1278_driver.c"
     INCLUDE_DIRS
     "include"
     REQUIRES

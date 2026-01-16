@@ -5,6 +5,8 @@
 #include "esp_random.h"
 #include "esp_log.h"
 #include "spi_utils.h"
+#include <stdbool.h>
+#include "sx_1278_driver.h"
 #define BURST_RECEIVE_TEST_PACKET_COUNT 10;
 
 esp_err_t test_receive_burst(int timeout)
@@ -25,11 +27,57 @@ esp_err_t test_receive_burst(int timeout)
 
 #define TAG "rx_test"
 
+static void log_hex(uint8_t *arr, size_t len)
+{
+    char str[255];
+    for (int i = 0; i < len; i++)
+    {
+        sprintf(&str[i * 3], "%02x ", arr[i]);
+    }
+    ESP_LOGI(TAG, "%s", str);
+}
+
+esp_err_t test_receive_single(int timeout)
+{
+    esp_err_t ret = sx1278_switch_mode(MODE_LORA | MODE_RX_SINGLE);
+    uint8_t data;
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt switch to rx cont");
+        return ret;
+    }
+
+    ret = poll_for_irq_flag(timeout, 5, 1 << 6, false);
+    if (ret != ESP_OK)
+    {
+        spi_burst_read_reg(sx_1278_spi, 0x12, &data, 1);
+        ESP_LOGE(TAG, "couldn't poll for packet received flag, got %x", data);
+        return ret;
+    }
+
+    sx1278_switch_mode(MODE_LORA | MODE_STDBY);
+
+    uint8_t rx_buf[255] = {0};
+    size_t len = 0;
+    ret = sx1278_read_last_payload(rx_buf, &len);
+
+    log_hex(rx_buf, len);
+
+    return ret;
+}
+
 esp_err_t test_receive_single_packet(int timeout)
 {
     uint8_t data = 0;
 
-    esp_err_t ret = poll_for_irq_flag(timeout, 5, 1 << 6, false);
+    esp_err_t ret = sx1278_switch_mode(MODE_LORA | MODE_RX_CONTINUOUS);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt switch to rx cont");
+        return ret;
+    }
+
+    ret = poll_for_irq_flag(timeout, 5, 1 << 6, false);
     if (ret != ESP_OK)
     {
         spi_burst_read_reg(sx_1278_spi, 0x12, &data, 1);
@@ -54,7 +102,7 @@ esp_err_t test_receive_single_packet(int timeout)
 
 cleanup:
     data = 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // put into rx
+    ret = spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq
     if (rx_p)
         free_packet(rx_p);
     return ret;

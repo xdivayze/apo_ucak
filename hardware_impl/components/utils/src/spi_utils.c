@@ -23,6 +23,7 @@ esp_err_t spi_burst_write_reg(spi_device_handle_t spi, const uint8_t addr, const
     memcpy(data_dma, data, len);
     if (len <= 0)
         return ESP_OK;
+    
     uint8_t *cmd = heap_caps_malloc(1, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
     if (!cmd)
     {

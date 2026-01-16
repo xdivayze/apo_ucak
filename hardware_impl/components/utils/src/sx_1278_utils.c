@@ -7,20 +7,8 @@
 #include "esp_timer.h"
 #include <stdbool.h>
 #include "esp_log.h"
-
+#include "sx_1278_driver.h"
 #define TAG "sx_1278_utils"
-
-#define FXOSC 32000000UL
-
-#define lora_frequency_lf 863000000 // datasheet table 32 for frequency bands
-#define lora_frequency_hf 865000000
-static uint32_t lora_bandwidth_hz = 125000; // table 12 for spreading factor-bandwidth relations
-static uint8_t spreading_factor = 12;
-
-static inline size_t calculate_channel_num()
-{
-    return (size_t)floor((lora_frequency_hf - lora_frequency_lf - 2 * lora_bandwidth_hz) / lora_bandwidth_hz);
-}
 
 static packet_types check_packet_type(packet *p)
 {
@@ -57,8 +45,8 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
     packet *p = malloc(sizeof(packet));
     if (!p)
         return ESP_ERR_NO_MEM;
-    data = 0b10001110;
-    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put into rx
+
+    esp_err_t ret = sx1278_switch_mode((MODE_LORA | MODE_RX_CONTINUOUS));
     uint32_t target_addr = 0;
     uint16_t ack_id = 0;
     int repeat = (int)round(handshake_timeout / 2000.0);
@@ -68,8 +56,8 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
         ret = poll_for_irq_flag(2000, 2, 1 << 6, false); // poll until packet received
         if (ret != ESP_OK)
             continue;
-        data = 0b10001001;
-        ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
+
+        ret = sx1278_switch_mode((MODE_LORA | MODE_STDBY));
         ret = read_last_packet(p);
         if (ret != ESP_OK)
             continue;
@@ -83,14 +71,12 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
                 continue;
             break;
         }
-        data = 0b10001110;
-        ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put into rx
+        ret = sx1278_switch_mode((MODE_LORA | MODE_RX_CONTINUOUS));
     }
 
     if (n != 0)
     {
-        data = 0b10001001;
-        ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
+        ret = sx1278_switch_mode((MODE_LORA | MODE_STDBY));
         free_packet(p);
         return ESP_ERR_TIMEOUT;
     }
@@ -104,13 +90,11 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
                 free_packet(p);
                 return ESP_ERR_TIMEOUT;
             }
-            data = 0b10001110;
-            ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put into rx
+            ret = sx1278_switch_mode((MODE_LORA | MODE_RX_CONTINUOUS));
             ret = poll_for_irq_flag(2000, 2, 1 << 6, false);
             if (ret != ESP_OK)
                 continue;
-            data = 0b10001001;
-            ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in standby mode
+            ret = sx1278_switch_mode((MODE_LORA | MODE_STDBY));
             ret = read_last_packet(p);
             if (ret != ESP_OK)
                 continue;
@@ -194,57 +178,6 @@ esp_err_t send_burst(packet **p_buf, const int len)
     return ESP_OK;
 }
 
-esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask, bool cleanup)
-{
-    timeout_ms = (timeout_ms <= 0) ? 3000 : timeout_ms;
-    poll_interval_ms = (poll_interval_ms <= 0) ? 2 : poll_interval_ms;
-
-    const int64_t start = esp_timer_get_time();
-    const int64_t timeout_us = (int64_t)timeout_ms * 1000;
-
-    uint8_t irq = 0;
-    esp_err_t ret;
-
-    int64_t elapsed_us = 0;
-    uint8_t data;
-    while (1)
-    {
-        ret = spi_burst_read_reg(sx_1278_spi, 0x12, &irq, 1);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "couldnt read irq register\n");
-            if (cleanup)
-            {
-                data = 0xFF;
-                spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
-            }
-            return ret;
-        }
-        if (irq & irq_and_mask)
-        {
-            if (cleanup)
-            {
-                data = 0xFF;
-                spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
-            }
-            return ESP_OK;
-        }
-
-        elapsed_us = esp_timer_get_time() - start;
-        if (elapsed_us > timeout_us)
-        {
-            if (cleanup)
-            {
-                data = 0xFF;
-                spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
-            }
-            ESP_LOGE(TAG, "polling timeout");
-            return ESP_ERR_TIMEOUT;
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(poll_interval_ms));
-    }
-}
 
 // puts into standby and returns back to standby if switch_to_rx_after_tx is not set.
 // internally calls packet_to_bytestream() function
@@ -252,29 +185,7 @@ esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t 
 // verifies that acks match the current packet's src address
 esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
 {
-
     static uint8_t tx_buffer[255];
-    uint8_t data = 0b10000000;
-    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in sleep mode
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "couldnt put sx1278 in standby mode\n");
-        return ret;
-    }
-
-    data = 0x00;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1); // set fifo base pointer
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "couldnt set fifo address\n");
-        return ret;
-    }
-    ret = spi_burst_write_reg(sx_1278_spi, 0x0D, &data, 1); // set fifo pointer
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "couldnt set fifo address\n");
-        return ret;
-    }
 
     int packet_size = packet_to_bytestream(tx_buffer, sizeof(tx_buffer), p);
     if (packet_size == -1)
@@ -285,50 +196,8 @@ esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
 
     uint8_t packet_size_byte = (uint8_t)(packet_size & 0xFF);
 
-    ret = spi_burst_write_reg(sx_1278_spi, 0x22, &packet_size_byte, 1); // write payload length
-
-    ret = spi_burst_write_reg(sx_1278_spi, 0x00, tx_buffer, packet_size_byte); // write payload
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "couldnt write packet to tx fifo\n");
-        return ret;
-    }
-
-    data = 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
-    if (ret != ESP_OK)
-    {
-
-        ESP_LOGE(TAG, "couldnt reset irq flags\n");
-        return ret;
-    }
-
-    data = 0b10000011;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in TX mode
-    if (ret != ESP_OK)
-    {
-
-        ESP_LOGE(TAG, "couldnt switch to transmit mode\n");
-        return ret;
-    }
-
-    ret = poll_for_irq_flag(3000, 3, (1 << 3), true); // poll until tx done flag is set
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "failed while polling for irq tx done flag\n");
-        return ret;
-    }
-
-    data = switch_to_rx_after_tx ? 0b10000110 : 0b10000000;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put in next mode
-
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "couldnt put sx1278 in next mode after tx is complete\n");
-        return ESP_ERROR_CHECK_WITHOUT_ABORT(0);
-    }
-
-    return ESP_OK;
+    esp_err_t ret = sx1278_send_payload(tx_buffer, packet_size, switch_to_rx_after_tx);
+    return ret;
 }
 
 // uses irq flags to check if rxdone is set but does not poll for the flag. for polling use poll_for_irq_flag
@@ -337,108 +206,22 @@ esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
 esp_err_t read_last_packet(packet *p)
 {
     static uint8_t rx_buffer[255];
-
-    const uint8_t irq_reg = 0x12;
-    uint8_t data = 0;
-
-    esp_err_t ret = spi_burst_read_reg(sx_1278_spi, irq_reg, &data, 1);
-    if (ret != ESP_OK)
-        return ret;
-    uint8_t rx_done_mask = 0b01000000; // RxDone bit
-
-    if (!(data & rx_done_mask))
-    {
-        data = 0xFF;
-        spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-        ESP_LOGE(TAG, "rx read not done\n");
-        return ESP_ERR_INVALID_STATE;
-    }
-    uint8_t rx_crc_mask = rx_done_mask >> 1; // PayloadCrcError bit
-    if (data & rx_crc_mask)
-    {
-        data = 0xFF;
-        spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-        ESP_LOGE(TAG, "rx crc failed, discarding packet\n");
-        return ESP_ERR_INVALID_CRC;
-    }
-
-    uint8_t n_packet_bytes = 0;
-    ret = spi_burst_read_reg(sx_1278_spi, 0x13, &n_packet_bytes, 1); // read number of bytes
-
-    uint8_t current_fifo_addr = 0;
-    ret = spi_burst_read_reg(sx_1278_spi, 0x10, &current_fifo_addr, 1);
-    if (ret != ESP_OK)
-    {
-        data = 0xFF;
-        ret = spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-        ESP_LOGE(TAG, "couldnt get rx fifo pointer, skipping packet\n");
-        return ret;
-    }
-
-    ret = spi_burst_write_reg(sx_1278_spi, 0x0D, &current_fifo_addr, 1);
-    if (ret != ESP_OK)
-    {
-        data = 0xFF;
-        ret = spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-        ESP_LOGE(TAG, "couldnt set rx fifo pointer, skipping packet\n");
-        return ret;
-    }
-
-    ret = spi_burst_read_reg(sx_1278_spi, 0x00, rx_buffer, n_packet_bytes); // read payload
-    if (ret != ESP_OK)
-    {
-        data = 0xFF;
-        ret = spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-        ESP_LOGE(TAG, "couldnt read rx fifo, skipping packet\n");
-        return ret;
-    }
+    size_t len = 0;
+    esp_err_t ret = sx1278_read_last_payload(rx_buffer, &len);
     int packet_size = parse_packet(rx_buffer, p);
     if (packet_size == -1)
     {
         ESP_LOGE(TAG, "packet couldnt be parsed, discarding packet\n");
-        data = 0xFF;
-        ret = spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-        memset(rx_buffer, 0x00, sizeof(rx_buffer));                // fill rx buffer with zeros
 
-        return ESP_ERR_INVALID_STATE;
+        ret = ESP_ERR_INVALID_STATE;
+        goto cleanup;
     }
 
+    ret = ESP_OK;
+
+cleanup:
     memset(rx_buffer, 0x00, sizeof(rx_buffer)); // fill rx buffer with zeros
-
-    data = 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, irq_reg, &data, 1); // reset irq
-
-    return ret;
-}
-
-esp_err_t sx_1278_switch_to_nth_channel(size_t n)
-{
-
-    if (n >= calculate_channel_num())
-        return ESP_ERR_INVALID_ARG;
-    uint64_t raw_freq = (uint64_t)(lora_frequency_lf + n * lora_bandwidth_hz + lora_bandwidth_hz / 2);
-    uint32_t frf = ((raw_freq) << 19) / FXOSC;
-    uint8_t data = (frf >> 16) & 0xFF;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x06, &data, 1)); // send frf big endian
-    data = (frf >> 8) & 0xFF;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x07, &data, 1));
-    data = (frf) & 0xFF;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x08, &data, 1));
-
-    return ESP_OK;
-}
-
-esp_err_t sx_1278_set_spreading_factor(uint8_t sf)
-{
-
-    if (sf < 6 || sf > 12)
-        return ESP_ERR_INVALID_ARG;
-
-    uint8_t data = 0b00000100;
-    data |= sf << 4;
-    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x1E, &data, 1);
-    if (ret == ESP_OK)
-        spreading_factor = sf;
+    sx1278_clear_irq();
     return ret;
 }
 
@@ -446,31 +229,31 @@ esp_err_t sx_1278_set_spreading_factor(uint8_t sf)
 
 static esp_err_t switch_to_fsk()
 {
-    uint8_t data = 0b10000000;
-    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set rx mode on fsk
+    uint8_t data = 0x00;
+    esp_err_t ret;
+    ret = sx1278_switch_mode((MODE_LORA | MODE_SLEEP));
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "couldnt set sleep mode on lora\n");
         return ret;
     }
 
-    data = 0x00;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set sleep mode on fsk
+    ret = sx1278_switch_mode(MODE_SLEEP);
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "couldnt set sleep mode on fsk\n");
         return ret;
     }
 
-    ret = spi_burst_read_reg(sx_1278_spi, 0x01, &data, 1);
+    ret = sx_1278_get_op_mode(&data);
     if (ret != ESP_OK)
     {
-        ESP_LOGE(TAG, "couldnt read operation mode register\n");
+        ESP_LOGE(TAG, "couldnt read operation mode register");
         return ret;
     }
     if (data >> 7)
     {
-        ESP_LOGE(TAG, "operational mode stuck at lora\n");
+        ESP_LOGE(TAG, "operational mode stuck at lora 0x%02x \n", data);
         return ret;
     }
 
@@ -489,8 +272,8 @@ esp_err_t sx_1278_get_channel_rssis(double *rssi_data, size_t *len)
         return ret;
     }
 
-    uint8_t data = 0b00001101;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set rx mode on fsk
+    uint8_t data;
+    ret = sx1278_switch_mode(MODE_FSK_RECEIVER);
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "couldnt set rx mode on fsk\n");
@@ -534,64 +317,10 @@ esp_err_t sx_1278_get_channel_rssis(double *rssi_data, size_t *len)
     memcpy(rssi_data, temp_rssi_arr, channel_n * sizeof(double));
 
     free(temp_rssi_arr);
-    data = 0b10000000;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // set sleep mode
+    ret = sx1278_switch_mode(MODE_SLEEP | MODE_LORA);
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "couldnt switch back to lora sleep mode\n");
     }
     return ret;
-}
-
-// settings are done for 25mW = 14dBm
-esp_err_t initialize_sx_1278()
-{
-    uint8_t data = 0;
-    ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x42, &data, 1)); // register version
-    if (data != 0x12)
-    {
-        ESP_LOGE(TAG, "sx1278 register version is not valid");
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    data = 0b10000000;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1)); // set sleep mode
-
-    data = 0x00;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0D, &data, 1)); // set fifo ptr addr
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0F, &data, 1)); // set rx fifo addr
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1)); // set tx fifo addr
-
-    // data = 0b10000001;
-    // ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1)); // set stdby mode
-
-    ESP_ERROR_CHECK(sx_1278_switch_to_nth_channel(0));
-
-    data = 0b11111100;                                                 // Pout = 14dbM
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x09, &data, 1)); // power
-
-    data = 0b00101011;                                                 // max current 100mA
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x2B, &data, 1)); // OCB
-
-    data = 0x84;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x4D, &data, 1)); // extra power mode not set
-
-    data = 0b01110010;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1D, &data, 1)); // 125kHz 4/5 coding explicit headers
-
-    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(spreading_factor));
-
-    data = 0xFF;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1F, &data, 1)); // 0xFF symbtimeout
-
-    data = 0x00;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x20, &data, 1)); // preamble length msb and lsb
-    data = 0x08;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x21, &data, 1));
-
-    data = SFD;
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x39, &data, 1)); // sync word
-    // TODO dio pin configuration
-
-    return ESP_OK;
 }

@@ -7,6 +7,7 @@
 #include "tx_tests.h"
 #include "esp_timer.h"
 #include "math.h"
+#include "sx_1278_driver.h"
 #include "rx_tests.h"
 
 #define ESP32C3
@@ -71,6 +72,16 @@ static esp_err_t spi_init()
         ESP_LOGE(TAG, "couldnt initialize spi bus\n");
     return ret;
 }
+
+static void log_hex(uint8_t *arr, size_t len)
+{
+    char str[255];
+    for (int i = 0; i < len; i++)
+    {
+        sprintf(&str[i * 3], "%02x ", arr[i]);
+    }
+    ESP_LOGI(TAG, "%s", str);
+}
 void app_main(void)
 {
 
@@ -88,10 +99,11 @@ void app_main(void)
     esp_err_t ret;
     size_t n = 0;
 
-#ifdef ESP32C6
-    data = 0b10000101;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put into rx
-#endif
+    // #ifdef ESP32C6
+    //     data = 0b10000101;
+    //     ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put into rx
+    // #endif
+
     while (1)
     {
         // ret = sx_1278_get_channel_rssis(rssi_vals, &n);
@@ -104,17 +116,18 @@ void app_main(void)
         //     ESP_LOGI(TAG, "rssi at channel %zu/%zu: %.2f\n", i, n - 1, rssi_vals[i]);
         // }
         // ESP_ERROR_CHECK(initialize_sx_1278());
+
         ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x01, &data, 1));
         if (!(data >> 7))
             ESP_LOGE(TAG, "not in lora mode\n");
         ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
 
 #ifdef ESP32C3
-        ESP_ERROR_CHECK(test_send_single_packet());
-        vTaskDelay(pdMS_TO_TICKS(300));
+        ESP_ERROR_CHECK(test_send_single());
+        vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
 #ifdef ESP32C6
-        test_receive_single_packet(3000);
+        test_receive_single(3000);
 
 #endif
     }
