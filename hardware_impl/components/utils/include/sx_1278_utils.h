@@ -15,7 +15,7 @@ esp_err_t initialize_sx_1278();
 esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask, bool cleanup);
 
 // send packet. does not concern itself with acks
-esp_err_t send_packet(packet *p, int switch_to_rx_after_tx);
+esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx);
 
 // read packet, dont send an ack
 esp_err_t read_last_packet(packet *p_out);

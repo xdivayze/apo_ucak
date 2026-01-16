@@ -5,7 +5,6 @@
 
 #define TAG "spiutils"
 
-// data must be dma capable
 esp_err_t spi_burst_write_reg(spi_device_handle_t spi, const uint8_t addr, const uint8_t *data, int len)
 {
 

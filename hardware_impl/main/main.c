@@ -7,10 +7,23 @@
 #include "tx_tests.h"
 #include "esp_timer.h"
 #include "math.h"
+#include "rx_tests.h"
+
+#define ESP32C3
+
+#ifdef ESP32C6
 #define SX_NSS GPIO_NUM_18
 #define SX_SCK GPIO_NUM_14
 #define SX_MISO GPIO_NUM_3
 #define SX_MOSI GPIO_NUM_4
+#endif
+
+#ifdef ESP32C3
+#define SX_NSS GPIO_NUM_3
+#define SX_SCK GPIO_NUM_0
+#define SX_MISO GPIO_NUM_1
+#define SX_MOSI GPIO_NUM_2
+#endif
 
 #define SX_SPI_CLOCK_SPEED 10000
 
@@ -67,28 +80,42 @@ void app_main(void)
     ESP_ERROR_CHECK(add_lora_device());
 
     ESP_ERROR_CHECK(initialize_sx_1278());
+
     ESP_LOGI(TAG, "sx1278 initialized\n");
     uint8_t data = 0;
 
     double rssi_vals[20] = {0.0};
     esp_err_t ret;
     size_t n = 0;
+
+#ifdef ESP32C6
+    data = 0b10000101;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put into rx
+#endif
     while (1)
     {
-        ret = sx_1278_get_channel_rssis(rssi_vals, &n);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "error while reading rssi channels: %s\n", esp_err_to_name(ret));
-        }
-        for (size_t i = 0; i < n; i++)
-        {
-            ESP_LOGI(TAG, "rssi at channel %zu/%zu: %.2f\n", i, n - 1, rssi_vals[i]);
-        }
-        ESP_ERROR_CHECK(initialize_sx_1278());
+        // ret = sx_1278_get_channel_rssis(rssi_vals, &n);
+        // if (ret != ESP_OK)
+        // {
+        //     ESP_LOGE(TAG, "error while reading rssi channels: %s\n", esp_err_to_name(ret));
+        // }
+        // for (size_t i = 0; i < n; i++)
+        // {
+        //     ESP_LOGI(TAG, "rssi at channel %zu/%zu: %.2f\n", i, n - 1, rssi_vals[i]);
+        // }
+        // ESP_ERROR_CHECK(initialize_sx_1278());
         ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x01, &data, 1));
         if (!(data >> 7))
             ESP_LOGE(TAG, "not in lora mode\n");
         ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
-        vTaskDelay(pdMS_TO_TICKS(500));
+
+#ifdef ESP32C3
+        ESP_ERROR_CHECK(test_send_single_packet());
+        vTaskDelay(pdMS_TO_TICKS(300));
+#endif
+#ifdef ESP32C6
+        test_receive_single_packet(3000);
+
+#endif
     }
 }
