@@ -12,6 +12,9 @@
 #define MODE_RX_CONTINUOUS (0b101 & 0xFF)
 
 #define MODE_FSK_RECEIVER (0b101 & 0xFF)
+
+#define PHY_TIMEOUT_MSEC 3000
+
 extern spi_device_handle_t sx_1278_spi;
 esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_tx);
 

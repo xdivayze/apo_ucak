@@ -10,31 +10,6 @@
 #include "sx_1278_driver.h"
 #define TAG "sx_1278_utils"
 
-static packet_types check_packet_type(packet *p)
-{
-    if ((p->sequence_number == 0) && (p->payload_length == 0))
-        return PACKET_BEGIN;
-    if (p->payload_length == 0)
-        return PACKET_ACK;
-    if ((p->sequence_number == UINT32_MAX) && (p->payload_length == 0))
-        return PACKET_END;
-    return PACKET_DATA;
-}
-static bool check_packet_features(packet *p, uint32_t src_addr, uint32_t dest_addr, uint16_t ack_id, uint32_t sequence_number, packet_types packet_type)
-{
-    if (p->src_address != src_addr)
-        return false;
-    if (p->dest_address != dest_addr)
-        return false;
-    if (p->ack_id != ack_id)
-        return false;
-    if (p->sequence_number != sequence_number)
-        return false;
-    if (check_packet_type(p) != packet_type)
-        return false;
-    return true;
-}
-
 // read from BEGIN to END packets sending ACKs in between
 // discards anything not intended for host address
 // TODO add adjustable size vector to temporarily store the packets then return
@@ -124,6 +99,90 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
     return ESP_OK;
 }
 
+//timeout / PHY_TIMEOUT used
+esp_err_t send_packet_ensure_ack(packet *p, int timeout)
+{
+    packet *rx_p = malloc(sizeof(packet));
+    uint8_t data = 0;
+    esp_err_t ret;
+    int timeout_n = (int)ceilf((float)timeout / PHY_TIMEOUT_MSEC);
+
+    // try again if ack timeout, wrong ack
+    for (int i = 0; i < timeout_n; i++)
+    {
+        ret = sx_1278_send_packet(p, 1);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while sending the packet");
+            goto cleanup;
+        }
+
+        ret = sx1278_poll_and_read_packet(rx_p, PHY_TIMEOUT_MSEC);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while reading packet. retrying...");
+            continue;
+        }
+
+        if (!check_packet_features(rx_p, p->dest_address, p->src_address, p->ack_id, p->sequence_number, PACKET_ACK))
+        {
+            ESP_LOGE(TAG, "mismatched packet. retrying...");
+            continue;
+        }
+
+        ret = ESP_OK;
+        goto cleanup;
+    }
+
+    ret = ESP_ERR_TIMEOUT;
+
+cleanup:
+    sx1278_clear_irq();
+    free_packet(rx_p);
+    sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
+    return ret;
+}
+
+esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout)
+{
+    esp_err_t ret;
+    uint8_t data;
+    ret = sx1278_switch_mode(MODE_LORA | MODE_RX_SINGLE);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt switch to rx single");
+        goto cleanup;
+    }
+
+    ret = poll_for_irq_flag(timeout, 5, 1 << 6, false);
+    if (ret != ESP_OK)
+    {
+        sx1278_read_irq(&data);
+        ESP_LOGE(TAG, "couldn't poll for packet received flag, got %x. Retrying...", data);
+    }
+
+    ret = sx1278_switch_mode(MODE_LORA | MODE_STDBY);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt switch to standby");
+        goto cleanup;
+    }
+
+    ret = read_last_packet(rx_p);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "error occured while reading the last packet");
+        goto cleanup;
+    }
+
+    ret = ESP_OK;
+
+cleanup:
+    sx1278_clear_irq();
+    sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
+    return ret;
+}
+
 // this one only sends packets in the array and waits for acks in between always include the BEGIN and END packets in the array
 esp_err_t send_burst(packet **p_buf, const int len)
 {
@@ -178,7 +237,6 @@ esp_err_t send_burst(packet **p_buf, const int len)
     return ESP_OK;
 }
 
-
 // puts into standby and returns back to standby if switch_to_rx_after_tx is not set.
 // internally calls packet_to_bytestream() function
 // polls for TxDone and clears irq flags
@@ -188,6 +246,7 @@ esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
     static uint8_t tx_buffer[255];
 
     int packet_size = packet_to_bytestream(tx_buffer, sizeof(tx_buffer), p);
+
     if (packet_size == -1)
     {
         ESP_LOGE(TAG, "couldnt convert packet to bytesteam\n");
@@ -203,6 +262,7 @@ esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
 // uses irq flags to check if rxdone is set but does not poll for the flag. for polling use poll_for_irq_flag
 // resets irq
 // assumes standby mode
+// allocates packet payload
 esp_err_t read_last_packet(packet *p)
 {
     static uint8_t rx_buffer[255];

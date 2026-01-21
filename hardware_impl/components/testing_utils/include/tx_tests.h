@@ -3,3 +3,4 @@
 
 esp_err_t test_send_single_packet();
 esp_err_t test_send_single();
+esp_err_t test_send_single_packet_expect_ack(int timeout);

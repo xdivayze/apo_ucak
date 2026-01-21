@@ -5,6 +5,16 @@
 
 #define TAG "spiutils"
 
+void log_hex(char* pTAG, uint8_t *arr, size_t len)
+{
+    char str[255];
+    for (int i = 0; i < len; i++)
+    {
+        sprintf(&str[i * 3], "%02x ", arr[i]);
+    }
+    ESP_LOGI(pTAG, "%s", str);
+}
+
 esp_err_t spi_burst_write_reg(spi_device_handle_t spi, const uint8_t addr, const uint8_t *data, int len)
 {
 
@@ -61,6 +71,9 @@ cleanup:
     spi_device_release_bus(spi);
     return ret;
 }
+
+
+
 
 esp_err_t spi_burst_read_reg(spi_device_handle_t spi, const uint8_t addr, uint8_t *data, int len)
 {

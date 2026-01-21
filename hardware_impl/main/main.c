@@ -10,7 +10,7 @@
 #include "sx_1278_driver.h"
 #include "rx_tests.h"
 
-#define ESP32C3
+#define ESP32C6
 
 #ifdef ESP32C6
 #define SX_NSS GPIO_NUM_18
@@ -72,16 +72,6 @@ static esp_err_t spi_init()
         ESP_LOGE(TAG, "couldnt initialize spi bus\n");
     return ret;
 }
-
-static void log_hex(uint8_t *arr, size_t len)
-{
-    char str[255];
-    for (int i = 0; i < len; i++)
-    {
-        sprintf(&str[i * 3], "%02x ", arr[i]);
-    }
-    ESP_LOGI(TAG, "%s", str);
-}
 void app_main(void)
 {
 
@@ -98,11 +88,6 @@ void app_main(void)
     double rssi_vals[20] = {0.0};
     esp_err_t ret;
     size_t n = 0;
-
-    // #ifdef ESP32C6
-    //     data = 0b10000101;
-    //     ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1); // put into rx
-    // #endif
 
     while (1)
     {
@@ -123,11 +108,11 @@ void app_main(void)
         ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
 
 #ifdef ESP32C3
-        ESP_ERROR_CHECK(test_send_single());
+        test_send_single_packet_expect_ack(3000);
         vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
 #ifdef ESP32C6
-        test_receive_single(3000);
+        test_receive_single_packet_send_ack(3000);
 
 #endif
     }

@@ -8,6 +8,7 @@
 
 #define TAG "sx_1278_driver"
 
+
 #define FXOSC 32000000UL
 
 #define lora_frequency_lf 863000000 // datasheet table 32 for frequency bands
@@ -19,17 +20,6 @@ size_t calculate_channel_num()
 {
     return (size_t)floor((lora_frequency_hf - lora_frequency_lf - 2 * lora_bandwidth_hz) / lora_bandwidth_hz);
 }
-
-static void log_hex(uint8_t *arr, size_t len)
-{
-    char str[255];
-    for (int i = 0; i < len; i++)
-    {
-        sprintf(&str[i * 3], "%02x ", arr[i]);
-    }
-    ESP_LOGI(TAG, "%s", str);
-}
-
 //len is the callback length
 esp_err_t sx1278_read_last_payload(uint8_t *buf, size_t *len)
 {
@@ -114,7 +104,7 @@ esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_
         return ret;
     }
 
-    data = 0x00;
+    data = 0x00; //TODO refactor fifo read/writes
     ret = spi_burst_read_reg(sx_1278_spi, 0x0E, &data, 1); // read fifo tx base pointer
     if (ret != ESP_OK)
     {
@@ -290,8 +280,8 @@ esp_err_t initialize_sx_1278()
 
     data = 0x00;
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0D, &data, 1)); // set fifo ptr addr
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0F, &data, 1)); // set rx fifo addr
-    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1)); // set tx fifo addr
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0F, &data, 1)); // set rx fifo base addr
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1)); // set tx fifo base baddr
 
     ESP_ERROR_CHECK(sx1278_switch_mode(MODE_LORA | MODE_STDBY));
 
