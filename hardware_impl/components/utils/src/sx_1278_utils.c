@@ -70,13 +70,13 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
 
             if (check_packet_features(p, target_addr, host_addr, ack_id, n, PACKET_DATA)) // check if nth data packet
             {
+                ESP_LOGI(TAG, "sending DATA ACK %i", n);
                 ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, n), true);
                 if (ret != ESP_OK)
                     continue; // if ACK is not sent repeat everything
 
-                ESP_LOGI(TAG, "sending DATA ACK");
-                p_buf[n] = malloc(sizeof(packet));
-                memcpy(p_buf[n], p, sizeof(packet)); // only update buffer if ack is sent
+                p_buf[n-1] = malloc(sizeof(packet));
+                memcpy(p_buf[n-1], p, sizeof(packet)); // only update buffer if ack is sent
                 n++;
                 break;
             }
@@ -93,7 +93,7 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
     }
 
     ret = ESP_OK;
-    *len = n;
+    *len = n-1;
 
 cleanup:
 

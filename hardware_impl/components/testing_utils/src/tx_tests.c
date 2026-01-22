@@ -13,7 +13,7 @@
 esp_err_t test_send_burst()
 {
     char *data_str = "amumu sejuani rammus";
-    size_t data_len = strlen(data_str) - 1;
+    size_t data_len = strlen(data_str) +1;
     size_t npackets = (size_t)(ceil((double)data_len / payload_length_max) + 2);
 
     uint8_t *data = malloc(data_len);

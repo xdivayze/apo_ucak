@@ -3,16 +3,20 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "esp_log.h"
 
-//TODO
-int packet_array_to_data(packet ** p_buf, uint8_t* data, int len) {
+// consumes the packets in the buffer
+int packet_array_to_data(packet **p_buf, uint8_t *data, int len)
+{
     size_t size = 0;
-    for (int i = 0; i<len; i++) {
-        size+=p_buf[i]->payload_length;
+
+    for (int i = 0; i < len; i++)
+    {
+        memcpy(&data[size], p_buf[i]->payload, p_buf[i]->payload_length);
+        size += p_buf[i]->payload_length;
     }
 
     return 0;
-    
 }
 
 // assumes necessary bytes for callback_buf are allocated (sizeof(packet*)*npackets) and consumes data
@@ -38,18 +42,18 @@ int data_to_packet_array(packet **callback_buf, uint8_t *data, int data_len,
 
     for (int i = 0; i < npackets; i++)
     {
-        payload_size = bytes_left < payload_length_max ? bytes_left : payload_length_max ;
+        payload_size = bytes_left < payload_length_max ? bytes_left : payload_length_max;
         uint8_t *p_data_buf = malloc(payload_size); // ownership given to packet callback buffer do not free
-        memcpy(p_data_buf, data + i*payload_length_max, payload_size);
+        memcpy(p_data_buf, data + i * payload_length_max, payload_size);
         buf[i] = packet_constructor(dest_addr, src_addr, ack_id, seq_offset + i, payload_size, p_data_buf); // sequence is offset if begin packet is included
         bytes_left -= payload_size;
     }
 
-    size_t buf_size_w_handshake = data_packet_pointer_arr_size; //total buffer size with handshake options considered
+    size_t buf_size_w_handshake = data_packet_pointer_arr_size; // total buffer size with handshake options considered
 
     if (include_handshakes)
     {
-        buf_size_w_handshake= data_packet_pointer_arr_size +  sizeof(packet *) * 2; //adjust if handshakes are included
+        buf_size_w_handshake = data_packet_pointer_arr_size + sizeof(packet *) * 2; // adjust if handshakes are included
         buf = realloc(buf, buf_size_w_handshake);
         if (!buf)
         {
@@ -60,7 +64,6 @@ int data_to_packet_array(packet **callback_buf, uint8_t *data, int data_len,
 
         buf[0] = ack_packet(dest_addr, src_addr, ack_id, 0);
         buf[npackets + 1] = ack_packet(dest_addr, src_addr, ack_id, UINT32_MAX);
-
     }
     memcpy(callback_buf, buf, buf_size_w_handshake);
     ret = 0;
