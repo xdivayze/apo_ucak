@@ -20,8 +20,7 @@ esp_err_t read_last_packet(packet *p_out);
 // send len packets from p_buf and expect acks.
 esp_err_t send_burst(packet **p_buf, const int len);
 
-esp_err_t send_packet_ensure_ack(packet* p, int timeout);
-
+esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type);
 // read with successive acks to p_buf from BEGIN until DONE packet and write length to len
 esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t host_addr);
 

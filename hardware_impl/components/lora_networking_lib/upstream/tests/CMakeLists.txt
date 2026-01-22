@@ -4,6 +4,7 @@ include(CTest)
 
 set(TEST_SOURCES
     test_packets.c
+    test_network_data_operations.c
 )
 
 foreach(src IN LISTS TEST_SOURCES)
@@ -11,6 +12,7 @@ foreach(src IN LISTS TEST_SOURCES)
     add_executable(${test_name} ${src})
     target_link_libraries(${test_name} PRIVATE 
         lora_networking_lib
+        m
     )
 
     target_compile_options(${test_name}

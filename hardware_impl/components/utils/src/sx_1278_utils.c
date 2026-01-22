@@ -8,83 +8,81 @@
 #include <stdbool.h>
 #include "esp_log.h"
 #include "sx_1278_driver.h"
+
 #define TAG "sx_1278_utils"
 
 // read from BEGIN to END packets sending ACKs in between
 // discards anything not intended for host address
-// TODO add adjustable size vector to temporarily store the packets then return
+// assumes p_buf has sizeof(packet*)*num bytes
 esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t host_addr)
 {
     int n = -1;
     uint8_t data = 0;
     packet *p = malloc(sizeof(packet));
-    if (!p)
-        return ESP_ERR_NO_MEM;
 
-    esp_err_t ret = sx1278_switch_mode((MODE_LORA | MODE_RX_CONTINUOUS));
+    char *packet_print = malloc(2048);
+
+    esp_err_t ret;
     uint32_t target_addr = 0;
     uint16_t ack_id = 0;
-    int repeat = (int)round(handshake_timeout / 2000.0);
+    bool end_reached = false;
+    int repeat = (int)round(handshake_timeout / PHY_TIMEOUT_MSEC);
     for (int i = 0; i < repeat; i++)
     {
+        ret = sx1278_poll_and_read_packet(p, PHY_TIMEOUT_MSEC);
 
-        ret = poll_for_irq_flag(2000, 2, 1 << 6, false); // poll until packet received
         if (ret != ESP_OK)
             continue;
-
-        ret = sx1278_switch_mode((MODE_LORA | MODE_STDBY));
-        ret = read_last_packet(p);
-        if (ret != ESP_OK)
-            continue;
-        if (check_packet_features(p, p->src_address, p->dest_address, p->ack_id, 0, PACKET_BEGIN)) // accept if destination address matches and is a valid handshake packet
+        if (check_packet_features(p, p->src_address, host_addr, p->ack_id, 0, PACKET_BEGIN)) // accept if destination address matches and is a valid handshake packet
         {
             target_addr = p->src_address; // set the source address
             ack_id = p->ack_id;           // set the ack id
-            n = 0;
+            n = 1;
             ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, p->sequence_number), true);
+            ESP_LOGI(TAG, "sending BEGIN ACK");
             if (ret != ESP_OK)
                 continue;
             break;
         }
-        ret = sx1278_switch_mode((MODE_LORA | MODE_RX_CONTINUOUS));
     }
 
-    if (n != 0)
+    if (n != 1)
     {
-        ret = sx1278_switch_mode((MODE_LORA | MODE_STDBY));
-        free_packet(p);
-        return ESP_ERR_TIMEOUT;
+        ret = ESP_ERR_TIMEOUT;
+        goto cleanup;
     }
-    bool end_reached = false;
+
     while (!end_reached)
     {
         for (int i = 0; i < (repeat + 1); i++)
         {
             if (i == repeat)
             {
-                free_packet(p);
-                return ESP_ERR_TIMEOUT;
+                ret = ESP_ERR_TIMEOUT;
+                goto cleanup;
             }
-            ret = sx1278_switch_mode((MODE_LORA | MODE_RX_CONTINUOUS));
-            ret = poll_for_irq_flag(2000, 2, 1 << 6, false);
+            ret = sx1278_poll_and_read_packet(p, PHY_TIMEOUT_MSEC);
             if (ret != ESP_OK)
                 continue;
-            ret = sx1278_switch_mode((MODE_LORA | MODE_STDBY));
-            ret = read_last_packet(p);
-            if (ret != ESP_OK)
-                continue;
+
+            packet_description(p, packet_print);
+            ESP_LOGI(TAG, "got packet: %s", packet_print);
 
             if (check_packet_features(p, target_addr, host_addr, ack_id, n, PACKET_DATA)) // check if nth data packet
             {
                 ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, n), true);
                 if (ret != ESP_OK)
-                    continue;                        // if ACK is not sent repeat everything
+                    continue; // if ACK is not sent repeat everything
+
+                ESP_LOGI(TAG, "sending DATA ACK");
+                p_buf[n] = malloc(sizeof(packet));
                 memcpy(p_buf[n], p, sizeof(packet)); // only update buffer if ack is sent
                 n++;
                 break;
             }
             else if (check_packet_features(p, target_addr, host_addr, ack_id, UINT32_MAX, PACKET_END))
             {
+                ESP_LOGI(TAG, "sending END ACK");
                 ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, UINT32_MAX), false); // end packet continue at standby
                 if (ret != ESP_OK)
                     continue; // if ACK is not sent repeat everything
@@ -93,53 +91,16 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
             }
         }
     }
-    free_packet(p);
 
+    ret = ESP_OK;
     *len = n;
-    return ESP_OK;
-}
-
-//timeout / PHY_TIMEOUT used
-esp_err_t send_packet_ensure_ack(packet *p, int timeout)
-{
-    packet *rx_p = malloc(sizeof(packet));
-    uint8_t data = 0;
-    esp_err_t ret;
-    int timeout_n = (int)ceilf((float)timeout / PHY_TIMEOUT_MSEC);
-
-    // try again if ack timeout, wrong ack
-    for (int i = 0; i < timeout_n; i++)
-    {
-        ret = sx_1278_send_packet(p, 1);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "error occured while sending the packet");
-            goto cleanup;
-        }
-
-        ret = sx1278_poll_and_read_packet(rx_p, PHY_TIMEOUT_MSEC);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "error occured while reading packet. retrying...");
-            continue;
-        }
-
-        if (!check_packet_features(rx_p, p->dest_address, p->src_address, p->ack_id, p->sequence_number, PACKET_ACK))
-        {
-            ESP_LOGE(TAG, "mismatched packet. retrying...");
-            continue;
-        }
-
-        ret = ESP_OK;
-        goto cleanup;
-    }
-
-    ret = ESP_ERR_TIMEOUT;
 
 cleanup:
-    sx1278_clear_irq();
-    free_packet(rx_p);
-    sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
+
+    sx1278_switch_mode((MODE_LORA | MODE_SLEEP));
+    free_packet(p);
+    free(packet_print);
+
     return ret;
 }
 
@@ -184,63 +145,44 @@ cleanup:
 }
 
 // this one only sends packets in the array and waits for acks in between always include the BEGIN and END packets in the array
+// consumes packets in p_buf
 esp_err_t send_burst(packet **p_buf, const int len)
 {
     packet *curr_packet;
     esp_err_t ret;
     uint8_t data = 0;
-    packet *rx_packet = malloc(sizeof(packet));
+    packet_types ptype;
+
+    char *packet_desc = malloc(2048);
+
     for (int i = 0; i < len; i++)
     {
-        while (1)
-        {
-            memset(rx_packet, 0, sizeof(*rx_packet));
-            curr_packet = p_buf[i];
-            ret = sx_1278_send_packet(curr_packet, 1);
 
-            if (ret == ESP_ERROR_CHECK_WITHOUT_ABORT(0))
-            {
-                data = 0b10001110;
-                ret = spi_burst_write_reg(sx_1278_spi, 0x01, &data, 1);
-                if (ret != ESP_OK)
-                {
-                    ESP_LOGE(TAG, "retry failed when setting sx1278 to rx mode\n");
-                    free_packet(rx_packet);
-                    return ret;
-                }
-            }
-            else if (ret != ESP_OK)
-            {
-                free_packet(rx_packet);
-                return ret;
-            }
+        curr_packet = p_buf[i];
 
-            ret = poll_for_irq_flag(2000, 2, 1 << 6, false); // do not clear irq flags as read_last_packet needs them
-            if (ret != ESP_OK)                               // if polling resulted in rxdone flag not being set retry
-                continue;
+        if (i == 0)
+            ptype = PACKET_BEGIN;
+        else if (i == len - 1)
+            ptype = PACKET_END;
+        else
+            ptype = PACKET_ACK;
 
-            ret = read_last_packet(rx_packet);
-            if (ret != ESP_OK)
-            { // retry if ack packet integrity cannot be verified
-                ESP_LOGE(TAG, "ack packet failed to be read, retrying\n");
-                continue;
-            }
-            if (check_packet_features(rx_packet, curr_packet->dest_address, curr_packet->src_address, curr_packet->ack_id, curr_packet->sequence_number, PACKET_ACK))
-            { // ith ACK packet
-                break;
-            }
-            else
-                continue; // retry if not ack packet
-        }
+        packet_description(curr_packet, packet_desc);
+
+        ESP_LOGI(TAG, "sending %i th packet %s", i, packet_desc);
+        ret = send_packet_ensure_ack(curr_packet, 4 * PHY_TIMEOUT_MSEC, ptype);
+        if (ret != ESP_OK)
+            goto cleanup;
+        free(p_buf[i]);
     }
-    free_packet(rx_packet);
-    return ESP_OK;
+    ret = ESP_OK;
+cleanup:
+    return ret;
 }
 
 // puts into standby and returns back to standby if switch_to_rx_after_tx is not set.
 // internally calls packet_to_bytestream() function
 // polls for TxDone and clears irq flags
-// verifies that acks match the current packet's src address
 esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
 {
     static uint8_t tx_buffer[255];
@@ -317,6 +259,49 @@ static esp_err_t switch_to_fsk()
         return ret;
     }
 
+    return ret;
+}
+
+// timeout / PHY_TIMEOUT used
+esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type)
+{
+    packet *rx_p = malloc(sizeof(packet));
+    uint8_t data = 0;
+    esp_err_t ret;
+    int timeout_n = (int)ceilf((float)timeout / PHY_TIMEOUT_MSEC);
+    // try again if ack timeout, wrong ack
+    for (int i = 0; i < timeout_n; i++)
+    {
+        ret = sx_1278_send_packet(p, 1);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while sending the packet");
+            goto cleanup;
+        }
+
+        ret = sx1278_poll_and_read_packet(rx_p, PHY_TIMEOUT_MSEC);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while reading packet. retrying...");
+            continue;
+        }
+
+        if (!check_packet_features(rx_p, p->dest_address, p->src_address, p->ack_id, p->sequence_number, ack_type))
+        {
+            ESP_LOGE(TAG, "mismatched packet. retrying...");
+            continue;
+        }
+
+        ret = ESP_OK;
+        goto cleanup;
+    }
+
+    ret = ESP_ERR_TIMEOUT;
+
+cleanup:
+    sx1278_clear_irq();
+    free_packet(rx_p);
+    sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
     return ret;
 }
 

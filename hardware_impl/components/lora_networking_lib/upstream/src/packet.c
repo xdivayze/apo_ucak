@@ -1,6 +1,7 @@
 #include "packet.h"
 #include <string.h>
-
+#include <stdio.h>
+#include <inttypes.h>
 static const size_t addr_length = sizeof(uint32_t);
 
 const size_t overhead = 2 * addr_length + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint8_t);
@@ -8,8 +9,6 @@ const size_t overhead = 2 * addr_length + sizeof(uint32_t) + sizeof(uint16_t) + 
 const size_t payload_length_max = 8;
 
 const size_t max_frame_size = payload_length_max + overhead;
-
-
 
 static void u32_conv_be(uint8_t *dst, uint32_t x)
 {
@@ -29,8 +28,8 @@ static inline uint32_t read_u32_be(const uint8_t *src)
 {
     return ((uint32_t)src[0] << 24) |
            ((uint32_t)src[1] << 16) |
-           ((uint32_t)src[2] <<  8) |
-           ((uint32_t)src[3] <<  0);
+           ((uint32_t)src[2] << 8) |
+           ((uint32_t)src[3] << 0);
 }
 
 static inline uint16_t read_u16_be(const uint8_t *src)
@@ -43,13 +42,13 @@ packet_types check_packet_type(packet *p)
 {
     if ((p->sequence_number == 0) && (p->payload_length == 0))
         return PACKET_BEGIN;
-    if (p->payload_length == 0)
-        return PACKET_ACK;
     if ((p->sequence_number == UINT32_MAX) && (p->payload_length == 0))
         return PACKET_END;
+    if (p->payload_length == 0)
+        return PACKET_ACK;
     return PACKET_DATA;
 }
- bool check_packet_features(packet *p, uint32_t src_addr, uint32_t dest_addr, uint16_t ack_id, uint32_t sequence_number, packet_types packet_type)
+bool check_packet_features(packet *p, uint32_t src_addr, uint32_t dest_addr, uint16_t ack_id, uint32_t sequence_number, packet_types packet_type)
 {
     if (p->src_address != src_addr)
         return false;
@@ -63,7 +62,14 @@ packet_types check_packet_type(packet *p)
         return false;
     return true;
 }
-
+void packet_description(packet *p, char *buf)
+{
+    char *str = malloc(9);
+    memcpy(str, p->payload, p->payload_length);
+    str[p->payload_length] = '\0';
+    sprintf(buf, "PACKET TYPE: %i\n DEST_ADDR: 0x%08" PRIx32 "\nSRC_ADDR: 0x%08" PRIx32 "\nACK_ID: 0x%04x\nSEQ: 0x%08" PRIx32 "\nPAYLOAD_LENGTH: 0x%02x\nDATA: %s\n", check_packet_type(p), p->dest_address, p->src_address, p->ack_id, p->sequence_number, p->payload_length, str);
+    free(str);
+}
 // does not allocate payload
 packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
                            uint32_t sequence_number, uint8_t payload_length, uint8_t *payload)
@@ -89,13 +95,13 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     uint32_t dest_addr = read_u32_be(&packet_data_raw[idx]);
     idx += addr_length;
 
-    uint32_t src_addr= read_u32_be(&packet_data_raw[idx]);
+    uint32_t src_addr = read_u32_be(&packet_data_raw[idx]);
     idx += addr_length;
 
-    uint16_t ack_id= read_u16_be(&packet_data_raw[idx]);
+    uint16_t ack_id = read_u16_be(&packet_data_raw[idx]);
     idx += sizeof(uint16_t);
 
-    uint32_t sequence_number= read_u32_be(&packet_data_raw[idx]);
+    uint32_t sequence_number = read_u32_be(&packet_data_raw[idx]);
     idx += sizeof(sequence_number);
 
     uint8_t payload_length = packet_data_raw[idx];
@@ -124,9 +130,10 @@ void free_packet(packet *p)
 }
 
 packet *ack_packet(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
-                   uint32_t sequence_number) {
-                    return packet_constructor(dest_address, src_address, ack_id, sequence_number, 0, NULL);
-                   }
+                   uint32_t sequence_number)
+{
+    return packet_constructor(dest_address, src_address, ack_id, sequence_number, 0, NULL);
+}
 
 // returns -1 on fail; packet size on success
 // writes pkt to buffer if buffer_size > pkt's frame size

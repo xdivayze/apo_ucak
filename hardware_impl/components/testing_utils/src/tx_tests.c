@@ -1,24 +1,67 @@
 #include "tx_tests.h"
 #include "packet.h"
+#include "network_data_operations.h"
 #include "esp_random.h"
 #include <string.h>
 #include "sx_1278_utils.h"
 #include "sx_1278_driver.h"
+#include <math.h>
 
 #include "esp_log.h"
 #define TAG "TX_TEST"
+
+esp_err_t test_send_burst()
+{
+    char *data_str = "amumu sejuani rammus";
+    size_t data_len = strlen(data_str) - 1;
+    size_t npackets = (size_t)(ceil((double)data_len / payload_length_max) + 2);
+
+    uint8_t *data = malloc(data_len);
+    memcpy(data, data_str, data_len);
+
+    packet **callback_buf = malloc(npackets * sizeof(packet *));
+    esp_err_t ret;
+    if (!callback_buf)
+        return ESP_ERR_NO_MEM;
+
+    if (data_to_packet_array(callback_buf, data, data_len, 0x12222221, 0x21111112, 0x01FF, true))
+    {
+        ESP_LOGE(TAG, "error occured while doing data to packet array");
+        ret = ESP_ERR_INVALID_STATE;
+        goto cleanup;
+    }
+
+    for (int i = 0; i < npackets; i++)
+    {
+        ESP_LOGI(TAG, "packet %i: %p", i, (void *)callback_buf[i]);
+    }
+
+    
+
+    ret = send_burst(callback_buf, npackets);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "error occured while sending burst");
+        goto cleanup;
+    }
+
+cleanup:
+    free(callback_buf);
+    return ret;
+}
 
 esp_err_t test_send_single_packet_expect_ack(int timeout)
 {
     uint8_t d_val[5] = {'a', 'm', 'u', 'm', 'u'};
     uint8_t *d = malloc(sizeof(d_val));
     memcpy(d, d_val, sizeof(d_val));
-    
+
     uint8_t data = 0;
     packet *p = packet_constructor(0x123, 0x456, 0x7, 0x08, 5, d);
 
-    esp_err_t ret = send_packet_ensure_ack(p, timeout);
-    if (ret != ESP_OK) {
+    esp_err_t ret = send_packet_ensure_ack(p, timeout, PACKET_ACK);
+    if (ret != ESP_OK)
+    {
         ESP_LOGE(TAG, "error occured: %s", esp_err_to_name(ret));
     }
 

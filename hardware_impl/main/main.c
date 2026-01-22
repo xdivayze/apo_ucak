@@ -10,7 +10,7 @@
 #include "sx_1278_driver.h"
 #include "rx_tests.h"
 
-#define ESP32C6
+#define ESP32C3
 
 #ifdef ESP32C6
 #define SX_NSS GPIO_NUM_18
@@ -72,6 +72,8 @@ static esp_err_t spi_init()
         ESP_LOGE(TAG, "couldnt initialize spi bus\n");
     return ret;
 }
+
+// TODO ping pong initialization for device pairing
 void app_main(void)
 {
 
@@ -108,11 +110,11 @@ void app_main(void)
         ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
 
 #ifdef ESP32C3
-        test_send_single_packet_expect_ack(3000);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        test_receive_burst(12000);
 #endif
 #ifdef ESP32C6
-        test_receive_single_packet_send_ack(3000);
+        test_send_burst();
+        vTaskDelay(pdMS_TO_TICKS(1000));
 
 #endif
     }

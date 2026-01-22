@@ -28,6 +28,7 @@ typedef struct
     uint8_t *payload;
 } packet;
 
+void packet_description(packet* p, char* buf);
 
 packet *ack_packet(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
                    uint32_t sequence_number);

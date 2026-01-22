@@ -2,10 +2,29 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "ESP-IDF Debug C3",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/${workspaceFolderBasename}.elf",
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "miDebuggerPath": "/home/cavej/.espressif/tools/riscv32-esp-elf-gdb/16.3_20250913/riscv32-esp-elf-gdb/bin/riscv32-esp-elf-gdb",
+      "miDebuggerServerAddress": "localhost:3333",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "setupCommands": [
+        { "text": "-enable-pretty-printing" },
+        
+      ],
+      "postRemoteConnectCommands": [
+        { "text": "monitor reset halt" }
+      ],
+    },
+    {
       "name": "(gdb) Launch packet tests",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/components/lora_networking_lib/upstream/build/tests/test_packets",
+      "program": "${workspaceFolder}/components/lora_networking_lib/upstream/build/tests/test_network_data_operations",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${fileDirname}",
