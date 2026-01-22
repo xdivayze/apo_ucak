@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "sx_1278_driver.h"
 #include <math.h>
+#include "esp_timer.h"
 
 #define HOST_ADDR 0x12222221
 #define TARGET_ADDR 0x21111112
@@ -18,24 +19,29 @@
 
 esp_err_t test_receive_burst(int timeout)
 {
+    int64_t t0 = esp_timer_get_time();
+    int64_t t1= 0;
     esp_err_t ret;
-    packet **p_buf = malloc(sizeof(packet) * 20);
+    packet **p_buf = malloc(sizeof(packet*) * 20);
     if (!p_buf)
         return ESP_ERR_NO_MEM;
     int len = 0;
     uint8_t *res_str = malloc(256);
+
     ret = read_burst(p_buf, &len, 3000, HOST_ADDR);
     if (ret != ESP_OK)
     {
         goto cleanup;
     }
+    t1 = esp_timer_get_time();
 
-    ESP_LOGI(TAG, "received %i bytes.", len);
+    ESP_LOGI(TAG, "received %i packets in %.4f seconds.", len, (t1-t0)/((float)1e6));
     packet_array_to_data(p_buf, res_str, len);
 
     ESP_LOGI(TAG, "received data: %s", res_str);
 
 cleanup:
+    free(p_buf);
     free(res_str);
     return ret;
 }

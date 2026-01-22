@@ -30,12 +30,6 @@ esp_err_t test_send_burst()
         ret = ESP_ERR_INVALID_STATE;
         goto cleanup;
     }
-
-    for (int i = 0; i < npackets; i++)
-    {
-        ESP_LOGI(TAG, "packet %i: %p", i, (void *)callback_buf[i]);
-    }
-
     
 
     ret = send_burst(callback_buf, npackets);

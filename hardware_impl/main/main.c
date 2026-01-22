@@ -10,7 +10,7 @@
 #include "sx_1278_driver.h"
 #include "rx_tests.h"
 
-#define ESP32C3
+#define ESP32C6
 
 #ifdef ESP32C6
 #define SX_NSS GPIO_NUM_18

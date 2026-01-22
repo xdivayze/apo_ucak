@@ -39,7 +39,6 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
             ack_id = p->ack_id;           // set the ack id
             n = 1;
             ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, p->sequence_number), true);
-            ESP_LOGI(TAG, "sending BEGIN ACK");
             if (ret != ESP_OK)
                 continue;
             break;
@@ -66,11 +65,9 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
                 continue;
 
             packet_description(p, packet_print);
-            ESP_LOGI(TAG, "got packet: %s", packet_print);
 
             if (check_packet_features(p, target_addr, host_addr, ack_id, n, PACKET_DATA)) // check if nth data packet
             {
-                ESP_LOGI(TAG, "sending DATA ACK %i", n);
                 ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, n), true);
                 if (ret != ESP_OK)
                     continue; // if ACK is not sent repeat everything
@@ -82,7 +79,6 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
             }
             else if (check_packet_features(p, target_addr, host_addr, ack_id, UINT32_MAX, PACKET_END))
             {
-                ESP_LOGI(TAG, "sending END ACK");
                 ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, UINT32_MAX), false); // end packet continue at standby
                 if (ret != ESP_OK)
                     continue; // if ACK is not sent repeat everything
@@ -153,8 +149,6 @@ esp_err_t send_burst(packet **p_buf, const int len)
     uint8_t data = 0;
     packet_types ptype;
 
-    char *packet_desc = malloc(2048);
-
     for (int i = 0; i < len; i++)
     {
 
@@ -167,9 +161,7 @@ esp_err_t send_burst(packet **p_buf, const int len)
         else
             ptype = PACKET_ACK;
 
-        packet_description(curr_packet, packet_desc);
 
-        ESP_LOGI(TAG, "sending %i th packet %s", i, packet_desc);
         ret = send_packet_ensure_ack(curr_packet, 4 * PHY_TIMEOUT_MSEC, ptype);
         if (ret != ESP_OK)
             goto cleanup;
