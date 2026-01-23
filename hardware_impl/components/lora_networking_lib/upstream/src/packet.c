@@ -2,9 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
-static const size_t addr_length = sizeof(uint32_t);
+static const size_t addr_length = sizeof(uint16_t);
 
-const size_t overhead = 2 * addr_length + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint8_t);
+const size_t overhead = 2 * addr_length + 1 + 1 + 1;
 
 const size_t payload_length_max = 8;
 
@@ -42,13 +42,13 @@ packet_types check_packet_type(packet *p)
 {
     if ((p->sequence_number == 0) && (p->payload_length == 0))
         return PACKET_BEGIN;
-    if ((p->sequence_number == UINT32_MAX) && (p->payload_length == 0))
+    if ((p->sequence_number == UINT8_MAX) && (p->payload_length == 0))
         return PACKET_END;
     if (p->payload_length == 0)
         return PACKET_ACK;
     return PACKET_DATA;
 }
-bool check_packet_features(packet *p, uint32_t src_addr, uint32_t dest_addr, uint16_t ack_id, uint32_t sequence_number, packet_types packet_type)
+bool check_packet_features(packet *p, uint16_t src_addr, uint16_t dest_addr, uint8_t ack_id, uint8_t sequence_number, packet_types packet_type)
 {
     if (p->src_address != src_addr)
         return false;
@@ -67,12 +67,12 @@ void packet_description(packet *p, char *buf)
     char *str = malloc(9);
     memcpy(str, p->payload, p->payload_length);
     str[p->payload_length] = '\0';
-    sprintf(buf, "PACKET TYPE: %i\n DEST_ADDR: 0x%08" PRIx32 "\nSRC_ADDR: 0x%08" PRIx32 "\nACK_ID: 0x%04x\nSEQ: 0x%08" PRIx32 "\nPAYLOAD_LENGTH: 0x%02x\nDATA: %s\n", check_packet_type(p), p->dest_address, p->src_address, p->ack_id, p->sequence_number, p->payload_length, str);
+    sprintf(buf, "PACKET TYPE: %i\n DEST_ADDR: 0x%04" PRIx16 "\nSRC_ADDR: 0x%04" PRIx16 "\nACK_ID: 0x%02x\nSEQ: 0x%02x\nPAYLOAD_LENGTH: 0x%02x\nDATA: %s\n", check_packet_type(p), p->dest_address, p->src_address, p->ack_id, p->sequence_number, p->payload_length, str);
     free(str);
 }
 // does not allocate payload
-packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
-                           uint32_t sequence_number, uint8_t payload_length, uint8_t *payload)
+packet *packet_constructor(uint16_t dest_address, uint16_t src_address, uint8_t ack_id,
+                           uint8_t sequence_number, uint8_t payload_length, uint8_t *payload)
 {
     if (payload_length > payload_length_max)
         return NULL;
@@ -92,16 +92,16 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
 {
     size_t idx = 0;
 
-    uint32_t dest_addr = read_u32_be(&packet_data_raw[idx]);
+    uint16_t dest_addr = read_u16_be(&packet_data_raw[idx]);
     idx += addr_length;
 
-    uint32_t src_addr = read_u32_be(&packet_data_raw[idx]);
+    uint16_t src_addr = read_u16_be(&packet_data_raw[idx]);
     idx += addr_length;
 
-    uint16_t ack_id = read_u16_be(&packet_data_raw[idx]);
-    idx += sizeof(uint16_t);
+    uint8_t ack_id = packet_data_raw[idx];
+    idx += sizeof(ack_id);
 
-    uint32_t sequence_number = read_u32_be(&packet_data_raw[idx]);
+    uint8_t sequence_number = packet_data_raw[idx];
     idx += sizeof(sequence_number);
 
     uint8_t payload_length = packet_data_raw[idx];
@@ -129,8 +129,8 @@ void free_packet(packet *p)
     free(p);
 }
 
-packet *ack_packet(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
-                   uint32_t sequence_number)
+packet *ack_packet(uint16_t dest_address, uint16_t src_address, uint8_t ack_id,
+                   uint8_t sequence_number)
 {
     return packet_constructor(dest_address, src_address, ack_id, sequence_number, 0, NULL);
 }
@@ -144,13 +144,13 @@ int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt)
         return -1;
 
     size_t idx = 0;
-    u32_conv_be(&(buffer[idx]), pkt->dest_address);
-    idx += addr_length;
-    u32_conv_be(&(buffer[idx]), pkt->src_address);
-    idx += addr_length;
-    u16_conv_be(&(buffer[idx]), pkt->ack_id);
+    u16_conv_be(&(buffer[idx]), pkt->dest_address);
+    idx += sizeof(pkt->dest_address);
+    u16_conv_be(&(buffer[idx]), pkt->src_address);
+    idx += sizeof(pkt->src_address);
+    buffer[idx] = pkt->ack_id;
     idx += sizeof(pkt->ack_id);
-    u32_conv_be(&(buffer[idx]), pkt->sequence_number);
+    buffer[idx] = pkt->sequence_number;
     idx += sizeof(pkt->sequence_number);
     buffer[idx] = pkt->payload_length;
     idx += sizeof(pkt->payload_length);

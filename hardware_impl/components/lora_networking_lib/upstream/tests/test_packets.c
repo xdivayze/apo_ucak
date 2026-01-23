@@ -7,10 +7,10 @@
 int test_parse_packet()
 {
     fprintf(stdout, "testing packet parsing\n");
-    uint32_t dest_addr = (uint32_t)(rand() & 0xFFFFFFFF);
-    uint32_t source_addr = (uint32_t)(rand() & 0xFFFFFFFF);
-    uint16_t ack_id = (uint16_t)(rand() & 0xFFFF);
-    uint32_t sequence_number = 0;
+    uint16_t dest_addr = (uint16_t)(rand() & 0xFFFF);
+    uint16_t source_addr = (uint16_t)(rand() & 0xFFFF);
+    uint8_t ack_id = (uint8_t)(rand() & 0xFF);
+    uint8_t sequence_number = 0;
     uint8_t payload_length = 8;
 
     uint8_t *payload = malloc(payload_length);
@@ -51,10 +51,10 @@ int test_parse_packet()
 int test_packet_to_bytestream()
 {
     fprintf(stdout, "testing packet to bytestream conversion\n");
-    uint32_t dest_addr = (uint32_t)(rand() & 0xFFFFFFFF);
-    uint32_t source_addr = (uint32_t)(rand() & 0xFFFFFFFF);
-    uint16_t ack_id = (uint16_t)(rand() & 0xFFFF);
-    uint32_t sequence_number = 0;
+    uint16_t dest_addr = (uint16_t)(rand() & 0xFFFF);
+    uint16_t source_addr = (uint16_t)(rand() & 0xFFFF);
+    uint8_t ack_id = (uint8_t)(rand() & 0xFF);
+    uint8_t sequence_number = 0;
     uint8_t payload_length = 8;
 
     uint8_t *payload = malloc(payload_length);

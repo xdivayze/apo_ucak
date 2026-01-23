@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "esp_log.h"
 
 // consumes the packets in the buffer
 int packet_array_to_data(packet **p_buf, uint8_t *data, int len)
@@ -22,7 +21,7 @@ int packet_array_to_data(packet **p_buf, uint8_t *data, int len)
 // assumes necessary bytes for callback_buf are allocated (sizeof(packet*)*npackets) and consumes data
 // this function stores all packets in heap memory!! DO NOT USE FOR LARGE DATA
 int data_to_packet_array(packet **callback_buf, uint8_t *data, int data_len,
-                         uint32_t dest_addr, uint32_t src_addr, uint16_t ack_id,
+                         uint16_t dest_addr, uint16_t src_addr, uint8_t ack_id,
                          bool include_handshakes)
 {
     int ret = -1;

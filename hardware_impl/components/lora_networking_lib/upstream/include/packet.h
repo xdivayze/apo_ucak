@@ -20,27 +20,26 @@ typedef enum
 
 typedef struct
 {
-    uint32_t dest_address;
-    uint32_t src_address;
-    uint16_t ack_id;
-    uint32_t sequence_number;
+    uint16_t dest_address;
+    uint16_t src_address;
+    uint8_t ack_id;
+    uint8_t sequence_number;
     uint8_t payload_length;
     uint8_t *payload;
 } packet;
 
 void packet_description(packet* p, char* buf);
 
-packet *ack_packet(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
-                   uint32_t sequence_number);
+packet *ack_packet(uint16_t dest_address, uint16_t src_address, uint8_t ack_id,
+                   uint8_t sequence_number);
 
-packet *packet_constructor(uint32_t dest_address, uint32_t src_address, uint16_t ack_id,
-                           uint32_t sequence_number, uint8_t payload_length, uint8_t *payload);
+packet *packet_constructor(uint16_t dest_address, uint16_t src_address, uint8_t ack_id,
+                           uint8_t sequence_number, uint8_t payload_length, uint8_t *payload);
 void free_packet(packet *p);
 
 int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt);
 
 int parse_packet(uint8_t *packet_data_raw, packet *p);
 packet_types check_packet_type(packet *p);
-bool check_packet_features(packet *p, uint32_t src_addr, uint32_t dest_addr, uint16_t ack_id, uint32_t sequence_number, packet_types packet_type);
-
+bool check_packet_features(packet *p, uint16_t src_addr, uint16_t dest_addr, uint8_t ack_id, uint8_t sequence_number, packet_types packet_type);
 #endif
