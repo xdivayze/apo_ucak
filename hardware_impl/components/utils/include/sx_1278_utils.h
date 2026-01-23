@@ -22,7 +22,7 @@ esp_err_t send_burst(packet **p_buf, const int len);
 
 esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type);
 // read with successive acks to p_buf from BEGIN until DONE packet and write length to len
-esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t host_addr);
+esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint16_t host_addr);
 
 esp_err_t sx_1278_get_channel_rssis(double *rssi_data, size_t *len);
 esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout);

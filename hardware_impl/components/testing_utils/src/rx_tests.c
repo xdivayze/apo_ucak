@@ -10,8 +10,8 @@
 #include <math.h>
 #include "esp_timer.h"
 
-#define HOST_ADDR 0x12222221
-#define TARGET_ADDR 0x21111112
+#define HOST_ADDR 0x1222
+#define TARGET_ADDR 0x2111
 
 #define TAG "rx_test"
 

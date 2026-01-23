@@ -24,7 +24,7 @@ esp_err_t test_send_burst()
     if (!callback_buf)
         return ESP_ERR_NO_MEM;
 
-    if (data_to_packet_array(callback_buf, data, data_len, 0x12222221, 0x21111112, 0x01FF, true))
+    if (data_to_packet_array(callback_buf, data, data_len, 0x1222, 0x2111, 0x3b, true))
     {
         ESP_LOGE(TAG, "error occured while doing data to packet array");
         ret = ESP_ERR_INVALID_STATE;

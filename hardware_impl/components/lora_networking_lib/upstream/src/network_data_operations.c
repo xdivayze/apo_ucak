@@ -62,7 +62,7 @@ int data_to_packet_array(packet **callback_buf, uint8_t *data, int data_len,
         memmove(&buf[1], &buf[0], data_packet_pointer_arr_size); // reallocate and move
 
         buf[0] = ack_packet(dest_addr, src_addr, ack_id, 0);
-        buf[npackets + 1] = ack_packet(dest_addr, src_addr, ack_id, UINT32_MAX);
+        buf[npackets + 1] = ack_packet(dest_addr, src_addr, ack_id, UINT8_MAX);
     }
     memcpy(callback_buf, buf, buf_size_w_handshake);
     ret = 0;

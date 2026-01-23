@@ -14,7 +14,7 @@
 // read from BEGIN to END packets sending ACKs in between
 // discards anything not intended for host address
 // assumes p_buf has sizeof(packet*)*num bytes
-esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t host_addr)
+esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint16_t host_addr)
 {
     int n = -1;
     uint8_t data = 0;
@@ -23,8 +23,8 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
     char *packet_print = malloc(2048);
 
     esp_err_t ret;
-    uint32_t target_addr = 0;
-    uint16_t ack_id = 0;
+    uint16_t target_addr = 0;
+    uint8_t ack_id = 0;
     bool end_reached = false;
     int repeat = (int)round(handshake_timeout / PHY_TIMEOUT_MSEC);
     for (int i = 0; i < repeat; i++)
@@ -77,9 +77,9 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint32_t h
                 n++;
                 break;
             }
-            else if (check_packet_features(p, target_addr, host_addr, ack_id, UINT32_MAX, PACKET_END))
+            else if (check_packet_features(p, target_addr, host_addr, ack_id, UINT8_MAX, PACKET_END))
             {
-                ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, UINT32_MAX), false); // end packet continue at standby
+                ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, UINT8_MAX), false); // end packet continue at standby
                 if (ret != ESP_OK)
                     continue; // if ACK is not sent repeat everything
                 end_reached = true;
