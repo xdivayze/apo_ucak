@@ -9,6 +9,7 @@
 #include "math.h"
 #include "sx_1278_driver.h"
 #include "rx_tests.h"
+#include "sx_1278_config.h"
 
 #define ESP32C3
 
@@ -118,4 +119,7 @@ void app_main(void)
 
 #endif
     }
+
+    spi_bus_remove_device(sx_1278_spi);
+    spi_bus_free(LORA_SPI_HOST);
 }

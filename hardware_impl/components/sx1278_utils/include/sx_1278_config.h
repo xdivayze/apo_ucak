@@ -1,7 +1,7 @@
 #pragma once
-
-#include "esp_err.h"
 #include "spi_utils.h"
+
+extern spi_device_handle_t sx_1278_spi;
 
 #define MODE_LORA (1 << 7)
 #define MODE_LF (1 << 3)
@@ -10,30 +10,38 @@
 #define MODE_TX (0b011 & 0xFF)
 #define MODE_RX_SINGLE (0b110 & 0xFF)
 #define MODE_RX_CONTINUOUS (0b101 & 0xFF)
-
 #define MODE_FSK_RECEIVER (0b101 & 0xFF)
 
-#define PHY_TIMEOUT_MSEC 3000
+typedef enum
+{
+    b62k5 = (0b11 << 1),
+    b125k = (0b111),
+    b250k = (0b1 << 3),
+    b500k = (0b1001),
+} bandwidths;
 
-extern spi_device_handle_t sx_1278_spi;
-esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_tx);
+typedef enum
+{
+    cr4d5 = (0b1),
+    cr4d6 = (0b10),
+    cr4d7 = (0b11),
+    cr4d8 = (0b1 << 2),
+} coding_rate;
 
 size_t calculate_channel_num();
+
+esp_err_t sx1278_read_irq(uint8_t *data);
+
+esp_err_t sx1278_clear_irq();
 
 esp_err_t sx1278_switch_mode(uint8_t mode_register);
 
 esp_err_t sx_1278_get_op_mode(uint8_t *data);
 
-esp_err_t initialize_sx_1278();
-
 esp_err_t sx_1278_switch_to_nth_channel(size_t n);
 
 esp_err_t sx_1278_set_spreading_factor(uint8_t sf);
 
-esp_err_t sx1278_read_irq(uint8_t *data);
+esp_err_t sx1278_set_bandwidth(bandwidths bw, coding_rate cr, bool enable_explicit_headers);
 
-esp_err_t sx1278_read_last_payload(uint8_t *buf, size_t *len);
-
-esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask, bool cleanup);
-
-esp_err_t sx1278_clear_irq();
+esp_err_t initialize_sx_1278();

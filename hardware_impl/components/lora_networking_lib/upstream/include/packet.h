@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 extern const size_t payload_length_max;
 extern const size_t overhead;

@@ -6,6 +6,7 @@
 #include "sx_1278_utils.h"
 #include "sx_1278_driver.h"
 #include <math.h>
+#include "sx_1278_config.h"
 
 #include "esp_log.h"
 #define TAG "TX_TEST"

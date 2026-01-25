@@ -1,0 +1,191 @@
+#include "sx_1278_config.h"
+#include "esp_log.h"
+#include "packet.h"
+#include <math.h>
+
+#define FXOSC 32000000UL
+
+#define lora_frequency_lf 863000000 // datasheet table 32 for frequency bands
+#define lora_frequency_hf 865000000
+static uint32_t lora_bandwidth_hz = 125000; // table 12 for spreading factor-bandwidth relations
+static uint8_t spreading_factor = 12;
+
+#define TAG "SX1278 CONFIG DRIVER"
+
+static uint32_t get_bw_value(bandwidths bw)
+{
+    switch (bw)
+    {
+    case b62k5:
+        return 62500;
+    case b125k:
+        return 125000;
+    case b250k:
+        return 250000;
+    case b500k:
+        return 500000;
+    }
+    return 0;
+}
+
+esp_err_t sx1278_read_irq(uint8_t *data)
+{
+    return spi_burst_read_reg(sx_1278_spi, 0x12, data, 1);
+}
+
+esp_err_t sx1278_clear_irq()
+{
+    uint8_t data = 0xFF;
+    return spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1);
+}
+
+size_t calculate_channel_num()
+{
+    return (size_t)floor((lora_frequency_hf - lora_frequency_lf - 2 * lora_bandwidth_hz) / lora_bandwidth_hz);
+}
+
+esp_err_t sx1278_switch_mode(uint8_t mode_register)
+{
+
+    esp_err_t ret = spi_burst_write_reg(sx_1278_spi, 0x01, &mode_register, 1);
+
+    return ret;
+}
+
+esp_err_t sx_1278_get_op_mode(uint8_t *data)
+{
+    return spi_burst_read_reg(sx_1278_spi, 0x01, data, 1);
+}
+
+esp_err_t sx_1278_switch_to_nth_channel(size_t n)
+{
+
+    if (n >= calculate_channel_num())
+        return ESP_ERR_INVALID_ARG;
+    uint64_t raw_freq = (uint64_t)(lora_frequency_lf + n * lora_bandwidth_hz + lora_bandwidth_hz / 2);
+    uint32_t frf = ((raw_freq) << 19) / FXOSC;
+    uint8_t data = (frf >> 16) & 0xFF;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x06, &data, 1)); // send frf big endian
+    data = (frf >> 8) & 0xFF;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x07, &data, 1));
+    data = (frf) & 0xFF;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x08, &data, 1));
+
+    return ESP_OK;
+}
+
+esp_err_t sx_1278_set_spreading_factor(uint8_t sf)
+{
+
+    uint8_t data;
+    esp_err_t ret;
+
+    ret = sx1278_switch_mode(MODE_LORA | MODE_STDBY);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt switch to standby");
+        return ret;
+    }
+
+    if (sf < 6 || sf > 12)
+        return ESP_ERR_INVALID_ARG;
+
+    data = 0b00000100;
+    data |= sf << 4;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x1E, &data, 1);
+    if (ret == ESP_OK)
+        spreading_factor = sf;
+
+    ret = sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
+    if (ret != ESP_OK)
+        ESP_LOGE(TAG, "error occured while switching to sleep mode");
+    return ret;
+}
+
+// switches to 0th channel
+esp_err_t sx1278_set_bandwidth(bandwidths bw, coding_rate cr, bool enable_explicit_headers)
+{
+    uint8_t data;
+    esp_err_t ret;
+
+    ret = sx1278_switch_mode(MODE_LORA | MODE_STDBY);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "couldnt switch to standby");
+        return ret;
+    }
+
+    data = ((bw << 4) | (cr << 1));
+    if (!enable_explicit_headers)
+        data |= 0x01;
+    else
+        data &= ~0x01;
+    ret = spi_burst_write_reg(sx_1278_spi, 0x1D, &data, 1);
+    if (ret == ESP_OK)
+    {
+        lora_bandwidth_hz = get_bw_value(bw);
+        ret = sx_1278_switch_to_nth_channel(0);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while switching back to 0th channel");
+            return ret;
+        }
+    }
+
+    ret = sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
+    if (ret != ESP_OK)
+        ESP_LOGE(TAG, "error occured while switching to sleep mode");
+
+    return ret;
+}
+
+// settings are done for 25mW = 14dBm
+esp_err_t initialize_sx_1278()
+{
+    uint8_t data = 0;
+    ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x42, &data, 1)); // register version
+    if (data != 0x12)
+    {
+        ESP_LOGE(TAG, "sx1278 register version is not valid");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    ESP_ERROR_CHECK(sx1278_switch_mode(MODE_LORA | MODE_SLEEP));
+
+    data = 0x00;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0D, &data, 1)); // set fifo ptr addr
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0F, &data, 1)); // set rx fifo base addr
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x0E, &data, 1)); // set tx fifo base baddr
+
+    ESP_ERROR_CHECK(sx1278_switch_mode(MODE_LORA | MODE_STDBY));
+
+    ESP_ERROR_CHECK(sx_1278_switch_to_nth_channel(0));
+
+    data = 0b11111100;                                                 // Pout = 14dbM
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x09, &data, 1)); // power
+
+    data = 0b00101011;                                                 // max current 100mA
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x2B, &data, 1)); // OCB
+
+    data = 0x84;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x4D, &data, 1)); // extra power mode not set
+
+    data = 0b01110010;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1D, &data, 1)); // 125kHz 4/5 coding explicit headers
+
+    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(spreading_factor));
+
+    data = 0xFF;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x1F, &data, 1)); // 0xFF symbtimeout
+
+    data = 0x00;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x20, &data, 1)); // preamble length msb and lsb
+    data = 0x08;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x21, &data, 1));
+
+    data = SFD;
+    ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x39, &data, 1)); // sync word
+    // TODO dio pin configuration
+
+    return ESP_OK;
+}

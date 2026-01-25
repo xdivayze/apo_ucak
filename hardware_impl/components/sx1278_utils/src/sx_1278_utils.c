@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "esp_log.h"
 #include "sx_1278_driver.h"
+#include "sx_1278_config.h"
 
 #define TAG "sx_1278_utils"
 
@@ -72,8 +73,8 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint16_t h
                 if (ret != ESP_OK)
                     continue; // if ACK is not sent repeat everything
 
-                p_buf[n-1] = malloc(sizeof(packet));
-                memcpy(p_buf[n-1], p, sizeof(packet)); // only update buffer if ack is sent
+                p_buf[n - 1] = malloc(sizeof(packet));
+                memcpy(p_buf[n - 1], p, sizeof(packet)); // only update buffer if ack is sent
                 n++;
                 break;
             }
@@ -89,7 +90,7 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint16_t h
     }
 
     ret = ESP_OK;
-    *len = n-1;
+    *len = n - 1;
 
 cleanup:
 
@@ -160,7 +161,6 @@ esp_err_t send_burst(packet **p_buf, const int len)
             ptype = PACKET_END;
         else
             ptype = PACKET_ACK;
-
 
         ret = send_packet_ensure_ack(curr_packet, 4 * PHY_TIMEOUT_MSEC, ptype);
         if (ret != ESP_OK)
