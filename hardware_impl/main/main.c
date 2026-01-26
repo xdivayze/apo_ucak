@@ -11,7 +11,7 @@
 #include "rx_tests.h"
 #include "sx_1278_config.h"
 
-#define ESP32C6
+#define ESP32C3
 
 #ifdef ESP32C6
 #define SX_NSS GPIO_NUM_18
@@ -92,7 +92,7 @@ void app_main(void)
     esp_err_t ret;
     size_t n = 0;
 
-    //ESP_ERROR_CHECK(sx_1278_set_spreading_factor(12));
+    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(10));
 
     while (1)
     {
@@ -113,7 +113,7 @@ void app_main(void)
         // ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
 
 #ifdef ESP32C3
-        test_receive_single_packet_send_ack(3000);
+        test_receive_burst(3000);
 #endif
 #ifdef ESP32C6
         test_send_burst(3000);
