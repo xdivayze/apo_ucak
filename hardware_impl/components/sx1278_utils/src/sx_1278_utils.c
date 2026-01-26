@@ -367,3 +367,106 @@ esp_err_t sx_1278_get_channel_rssis(double *rssi_data, size_t *len)
     }
     return ret;
 }
+
+esp_err_t poll_for_irq_flag_no_timeout(size_t poll_interval_ms, uint8_t irq_and_mask, bool cleanup)
+{
+
+    uint8_t irq = 0;
+    esp_err_t ret;
+    uint8_t data;
+    while (1)
+    {
+
+        ret = spi_burst_read_reg(sx_1278_spi, 0x12, &irq, 1);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "couldnt read irq register\n");
+            if (cleanup)
+            {
+                data = 0xFF;
+                spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
+            }
+            return ret;
+        }
+        if (irq & irq_and_mask)
+        {
+            if (cleanup)
+            {
+                data = 0xFF;
+                spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
+            }
+            return ESP_OK;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(poll_interval_ms));
+    }
+}
+
+esp_err_t start_rx_loop(uint16_t host_addr)
+{
+    esp_err_t ret;
+    uint8_t data;
+
+    packet *rx_p = malloc(sizeof(packet));
+    rx_p->payload = NULL;
+
+    char *p_desc = malloc(2048);
+
+    ret = sx1278_switch_mode(MODE_LORA | MODE_RX_CONTINUOUS);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "error occured while switching mode");
+        goto cleanup;
+    }
+
+    while (1)
+    {
+        ret = sx1278_clear_irq();
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "couldnt clear irq");
+            goto cleanup;
+        }
+
+        ret = sx1278_switch_mode(MODE_LORA | MODE_RX_CONTINUOUS);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while switching mode");
+            goto cleanup;
+        }
+
+        ret = poll_for_irq_flag_no_timeout(1, (1 << 6), false);
+        if (ret != ESP_OK)
+        {
+            sx1278_read_irq(&data);
+            ESP_LOGE(TAG, "failed poll for packet received flag, got %x. ", data);
+            continue;
+        }
+
+        ret = read_last_packet(rx_p);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while reading the last packet");
+            continue;
+        }
+        if (host_addr != 0x00)
+        {
+            if (rx_p->dest_address != host_addr)
+                continue;
+        }
+
+        ret = sx_1278_send_packet(ack_packet(rx_p->src_address, rx_p->dest_address, rx_p->ack_id, rx_p->sequence_number), true);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "error occured while sending the ack packet");
+            goto cleanup;
+        }
+
+        packet_description(rx_p, p_desc);
+        ESP_LOGI(TAG, "received  packet:\n%s", p_desc);
+    }
+
+cleanup:
+    free_packet(rx_p);
+    return ret;
+}

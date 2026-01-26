@@ -13,7 +13,16 @@
 esp_err_t sx1278_read_last_payload(uint8_t *buf, size_t *len)
 {
     uint8_t data = 0;
-    esp_err_t ret = sx1278_read_irq(&data);
+    esp_err_t ret;
+
+    ret = sx1278_switch_mode(MODE_LORA | MODE_STDBY);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "error occured while switching mode");
+        return ret;
+    }
+
+    ret = sx1278_read_irq(&data);
 
     if (ret != ESP_OK)
         return ret;
@@ -188,7 +197,6 @@ esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t 
             }
             return ESP_OK;
         }
-
         elapsed_us = esp_timer_get_time() - start;
         if (elapsed_us > timeout_us)
         {

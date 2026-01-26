@@ -27,5 +27,7 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint16_t h
 esp_err_t sx_1278_get_channel_rssis(double *rssi_data, size_t *len);
 esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout);
 
+esp_err_t poll_for_irq_flag_no_timeout(size_t poll_interval_ms, uint8_t irq_and_mask, bool cleanup);
 
+esp_err_t start_rx_loop(uint16_t host_addr);   
 #endif

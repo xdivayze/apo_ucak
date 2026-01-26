@@ -107,13 +107,13 @@ void app_main(void)
         // }
         // ESP_ERROR_CHECK(initialize_sx_1278());
 
-        // ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x01, &data, 1));
-        // if (!(data >> 7))
-        //     ESP_LOGE(TAG, "not in lora mode\n");
-        // ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
+        ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x01, &data, 1));
+        if (!(data >> 7))
+            ESP_LOGE(TAG, "not in lora mode\n");
+        ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
 
 #ifdef ESP32C3
-        test_receive_burst(3000);
+        start_rx_loop(0x00);
 #endif
 #ifdef ESP32C6
         test_send_burst(3000);
