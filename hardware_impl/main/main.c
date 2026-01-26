@@ -10,7 +10,7 @@
 #include "sx_1278_driver.h"
 #include "rx_tests.h"
 #include "sx_1278_config.h"
-
+#include "sx_1278_rx_utils.h"
 #define ESP32C3
 
 #ifdef ESP32C6
@@ -92,7 +92,7 @@ void app_main(void)
     esp_err_t ret;
     size_t n = 0;
 
-    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(10));
+    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(7));
 
     while (1)
     {
@@ -115,7 +115,7 @@ void app_main(void)
 #ifdef ESP32C3
         start_rx_loop(0x00);
 #endif
-#ifdef ESP32C6
+#ifdef ESP32C6 //TODO pacjet received handler
         test_send_burst(3000);
         vTaskDelay(pdMS_TO_TICKS(1000));
 

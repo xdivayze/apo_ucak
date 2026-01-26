@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "sx_1278_driver.h"
 #include "sx_1278_config.h"
+#include "sx_1278_rx_utils.h"
 
 #define TAG "sx_1278_utils"
 
@@ -194,32 +195,6 @@ esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
     return ret;
 }
 
-// uses irq flags to check if rxdone is set but does not poll for the flag. for polling use poll_for_irq_flag
-// resets irq
-// assumes standby mode
-// allocates packet payload
-esp_err_t read_last_packet(packet *p)
-{
-    static uint8_t rx_buffer[255];
-    size_t len = 0;
-    esp_err_t ret = sx1278_read_last_payload(rx_buffer, &len);
-    int packet_size = parse_packet(rx_buffer, p);
-    if (packet_size == -1)
-    {
-        ESP_LOGE(TAG, "packet couldnt be parsed, discarding packet\n");
-
-        ret = ESP_ERR_INVALID_STATE;
-        goto cleanup;
-    }
-
-    ret = ESP_OK;
-
-cleanup:
-    memset(rx_buffer, 0x00, sizeof(rx_buffer)); // fill rx buffer with zeros
-    sx1278_clear_irq();
-    return ret;
-}
-
 #define RSSI_READ_DELAY_MS 20
 
 static esp_err_t switch_to_fsk()
@@ -400,73 +375,4 @@ esp_err_t poll_for_irq_flag_no_timeout(size_t poll_interval_ms, uint8_t irq_and_
 
         vTaskDelay(pdMS_TO_TICKS(poll_interval_ms));
     }
-}
-
-esp_err_t start_rx_loop(uint16_t host_addr)
-{
-    esp_err_t ret;
-    uint8_t data;
-
-    packet *rx_p = malloc(sizeof(packet));
-    rx_p->payload = NULL;
-
-    char *p_desc = malloc(2048);
-
-    ret = sx1278_switch_mode(MODE_LORA | MODE_RX_CONTINUOUS);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "error occured while switching mode");
-        goto cleanup;
-    }
-
-    while (1)
-    {
-        ret = sx1278_clear_irq();
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "couldnt clear irq");
-            goto cleanup;
-        }
-
-        ret = sx1278_switch_mode(MODE_LORA | MODE_RX_CONTINUOUS);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "error occured while switching mode");
-            goto cleanup;
-        }
-
-        ret = poll_for_irq_flag_no_timeout(1, (1 << 6), false);
-        if (ret != ESP_OK)
-        {
-            sx1278_read_irq(&data);
-            ESP_LOGE(TAG, "failed poll for packet received flag, got %x. ", data);
-            continue;
-        }
-
-        ret = read_last_packet(rx_p);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "error occured while reading the last packet");
-            continue;
-        }
-        if (host_addr != 0x00)
-        {
-            if (rx_p->dest_address != host_addr)
-                continue;
-        }
-
-        ret = sx_1278_send_packet(ack_packet(rx_p->src_address, rx_p->dest_address, rx_p->ack_id, rx_p->sequence_number), true);
-        if (ret != ESP_OK)
-        {
-            ESP_LOGE(TAG, "error occured while sending the ack packet");
-            goto cleanup;
-        }
-
-        packet_description(rx_p, p_desc);
-        ESP_LOGI(TAG, "received  packet:\n%s", p_desc);
-    }
-
-cleanup:
-    free_packet(rx_p);
-    return ret;
 }

@@ -6,6 +6,7 @@ idf_component_register(
     "src/sx_1278_utils.c"
     "src/sx_1278_driver.c"
     "src/sx_1278_config.c"
+    "src/sx_1278_rx_utils.c"
     INCLUDE_DIRS
     "include"
     REQUIRES
