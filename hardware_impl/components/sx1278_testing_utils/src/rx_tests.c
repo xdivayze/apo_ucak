@@ -29,7 +29,7 @@ esp_err_t test_receive_burst(int timeout)
     int len = 0;
     uint8_t *res_str = malloc(256);
 
-    ret = read_burst(p_buf, &len, 3000, HOST_ADDR);
+    ret = read_burst(p_buf, &len, timeout, HOST_ADDR);
     if (ret != ESP_OK)
     {
         goto cleanup;
@@ -81,6 +81,7 @@ esp_err_t test_receive_single_packet_send_ack(int timeout)
     uint8_t data = 0;
 
     packet *rx_p = malloc(sizeof(packet));
+    rx_p->payload = NULL;
     char str[255];
     esp_err_t ret = sx1278_poll_and_read_packet(rx_p, timeout);
     packet *ack = NULL;

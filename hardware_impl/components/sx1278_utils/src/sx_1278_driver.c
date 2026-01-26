@@ -9,11 +9,7 @@
 
 #define TAG "sx_1278_driver"
 
-
-
-
-
-//len is the callback length
+// len is the callback length
 esp_err_t sx1278_read_last_payload(uint8_t *buf, size_t *len)
 {
     uint8_t data = 0;
@@ -68,13 +64,11 @@ esp_err_t sx1278_read_last_payload(uint8_t *buf, size_t *len)
         return ret;
     }
 
-
     sx1278_clear_irq();
 
     *len = n_packet_bytes;
     return ESP_OK;
 }
-
 
 esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_tx)
 {
@@ -87,7 +81,7 @@ esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_
         return ret;
     }
 
-    data = 0x00; //TODO refactor fifo read/writes
+    data = 0x00;                                           // TODO refactor fifo read/writes
     ret = spi_burst_read_reg(sx_1278_spi, 0x0E, &data, 1); // read fifo tx base pointer
     if (ret != ESP_OK)
     {
@@ -114,8 +108,8 @@ esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_
         return ret;
     }
 
-    data = 0xFF;
-    ret = spi_burst_write_reg(sx_1278_spi, 0x12, &data, 1); // clear irq flags
+    ret = sx1278_clear_irq();
+
     if (ret != ESP_OK)
     {
 
@@ -138,6 +132,15 @@ esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_
         return ret;
     }
 
+    ret = sx1278_clear_irq();
+
+    if (ret != ESP_OK)
+    {
+
+        ESP_LOGE(TAG, "couldnt reset irq flags\n");
+        return ret;
+    }
+
     data = switch_to_rx_after_tx ? MODE_RX_CONTINUOUS : MODE_SLEEP;
     ret = sx1278_switch_mode((MODE_LORA | data));
 
@@ -149,8 +152,6 @@ esp_err_t sx1278_send_payload(uint8_t *buf, uint8_t len, int switch_to_rx_after_
 
     return ESP_OK;
 }
-
-
 
 esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t irq_and_mask, bool cleanup)
 {
@@ -203,4 +204,3 @@ esp_err_t poll_for_irq_flag(size_t timeout_ms, size_t poll_interval_ms, uint8_t 
         vTaskDelay(pdMS_TO_TICKS(poll_interval_ms));
     }
 }
-

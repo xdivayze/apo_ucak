@@ -92,6 +92,8 @@ void app_main(void)
     esp_err_t ret;
     size_t n = 0;
 
+    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(10));
+
     while (1)
     {
         // ret = sx_1278_get_channel_rssis(rssi_vals, &n);
@@ -111,10 +113,10 @@ void app_main(void)
         ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
 
 #ifdef ESP32C3
-        test_receive_burst(12000);
+        test_receive_burst(3000);
 #endif
 #ifdef ESP32C6
-        test_send_burst();
+        test_send_burst(3000);
         vTaskDelay(pdMS_TO_TICKS(1000));
 
 #endif

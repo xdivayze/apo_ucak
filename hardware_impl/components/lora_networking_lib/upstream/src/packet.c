@@ -107,13 +107,20 @@ int parse_packet(uint8_t *packet_data_raw, packet *p)
     uint8_t payload_length = packet_data_raw[idx];
     idx++;
 
-    uint8_t *payload = malloc(payload_length);
-    memcpy(payload, &(packet_data_raw[idx]), payload_length);
-    idx += payload_length;
+    if (payload_length > 0)
+
+    {
+        uint8_t *payload = malloc(payload_length);
+        memcpy(payload, &(packet_data_raw[idx]), payload_length);
+        idx += payload_length;
+        p->payload = payload;
+    } else {
+        p->payload = NULL;
+    }
 
     p->ack_id = ack_id;
     p->dest_address = dest_addr;
-    p->payload = payload;
+
     p->payload_length = payload_length;
     p->sequence_number = sequence_number;
     p->src_address = src_addr;

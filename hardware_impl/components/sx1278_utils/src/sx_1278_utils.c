@@ -20,7 +20,7 @@ esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint16_t h
     int n = -1;
     uint8_t data = 0;
     packet *p = malloc(sizeof(packet));
-
+    p->payload = NULL;
     char *packet_print = malloc(2048);
 
     esp_err_t ret;
@@ -116,7 +116,8 @@ esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout)
     if (ret != ESP_OK)
     {
         sx1278_read_irq(&data);
-        ESP_LOGE(TAG, "couldn't poll for packet received flag, got %x. Retrying...", data);
+        ESP_LOGE(TAG, "couldn't poll for packet received flag, got %x. ", data);
+        goto cleanup;
     }
 
     ret = sx1278_switch_mode(MODE_LORA | MODE_STDBY);
@@ -258,8 +259,10 @@ static esp_err_t switch_to_fsk()
 esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type)
 {
     packet *rx_p = malloc(sizeof(packet));
+    rx_p->payload = NULL;
     uint8_t data = 0;
     esp_err_t ret;
+    char *p_desc = malloc(2048);
     int timeout_n = (int)ceilf((float)timeout / PHY_TIMEOUT_MSEC);
     // try again if ack timeout, wrong ack
     for (int i = 0; i < timeout_n; i++)
@@ -280,6 +283,9 @@ esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type)
 
         if (!check_packet_features(rx_p, p->dest_address, p->src_address, p->ack_id, p->sequence_number, ack_type))
         {
+            packet_description(rx_p, p_desc);
+            ESP_LOGE(TAG, "pdesc: \n%s", rx_p);
+
             ESP_LOGE(TAG, "mismatched packet. retrying...");
             continue;
         }
