@@ -91,18 +91,18 @@ esp_err_t test_receive_single_packet_send_ack(int timeout)
         goto cleanup;
     }
 
-    memcpy(str, rx_p->payload, rx_p->payload_length);
-    str[rx_p->payload_length] = '\0';
-
-    ESP_LOGI(TAG, "received dest addr: 0x%08x, src addr: 0x%08x, ack id: 0x%04x, sequence: 0x%08x", rx_p->dest_address, rx_p->src_address, rx_p->ack_id, rx_p->sequence_number);
-    ESP_LOGI(TAG, "received data length: %02X, data: %s", rx_p->payload_length, str);
-
     ret = sx_1278_send_packet(ack_packet(rx_p->src_address, rx_p->dest_address, rx_p->ack_id, rx_p->sequence_number), 0);
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "error occured while sending ack packet");
         goto cleanup;
     }
+
+    memcpy(str, rx_p->payload, rx_p->payload_length);
+    str[rx_p->payload_length] = '\0';
+
+    ESP_LOGI(TAG, "received dest addr: 0x%08x, src addr: 0x%08x, ack id: 0x%04x, sequence: 0x%08x", rx_p->dest_address, rx_p->src_address, rx_p->ack_id, rx_p->sequence_number);
+    ESP_LOGI(TAG, "received data length: %02X, data: %s", rx_p->payload_length, str);
 
     ret = ESP_OK;
 

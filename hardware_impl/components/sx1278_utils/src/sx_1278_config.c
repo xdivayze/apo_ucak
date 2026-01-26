@@ -180,7 +180,7 @@ esp_err_t initialize_sx_1278()
 
     data = 0x00;
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x20, &data, 1)); // preamble length msb and lsb
-    data = 0x08;
+    data = 0x18;
     ESP_ERROR_CHECK(spi_burst_write_reg(sx_1278_spi, 0x21, &data, 1));
 
     data = SFD;

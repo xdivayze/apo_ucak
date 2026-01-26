@@ -284,7 +284,7 @@ esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type)
         if (!check_packet_features(rx_p, p->dest_address, p->src_address, p->ack_id, p->sequence_number, ack_type))
         {
             packet_description(rx_p, p_desc);
-            ESP_LOGE(TAG, "pdesc: \n%s", rx_p);
+            ESP_LOGE(TAG, "pdesc: \n%s", p_desc);
 
             ESP_LOGE(TAG, "mismatched packet. retrying...");
             continue;
