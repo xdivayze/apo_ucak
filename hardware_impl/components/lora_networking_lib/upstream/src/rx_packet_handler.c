@@ -18,7 +18,7 @@ void set_remote_addr(uint16_t cfg_remote_src_addr)
     remote_src_addr = cfg_remote_src_addr;
 }
 
-//passed callback functions must consume the passed packets
+// passed callback functions must consume the passed packets
 void configure_rx_packet_handler(command_packet_handler_t cfg_command_packet_handler, capture_end_handler_t cfg_capture_end_handler, uint16_t cfg_host_addr, uint16_t cfg_remote_src_addr)
 {
     command_packet_handler = cfg_command_packet_handler;
@@ -42,10 +42,12 @@ packet **get_rx_captured_packet_array()
     return captured_packet_arr;
 }
 
-//rx_p ownership transferred to function.
+// rx_p ownership transferred to function.
 rx_handler_return rx_packet_handler(packet *rx_p)
 {
-    rx_handler_return ret;
+    static uint8_t last_received_ack_id = 0x00;
+    static uint8_t last_received_seq_number = 0x00;
+    rx_handler_return ret = UNKNOWN_PACKET;
 
     if (!rx_p)
     {
@@ -65,15 +67,15 @@ rx_handler_return rx_packet_handler(packet *rx_p)
         goto cleanup;
     }
 
-    if (capture && (rx_p->ack_id == capture_ack_id))
+    if ((rx_p->ack_id == last_received_ack_id) && (rx_p->sequence_number == last_received_seq_number))
     {
-        if ((rx_p->sequence_number < (captured_n + 1))) // data packets start at index 1
-        {
-            ret = PACKET_REJECTED;
-            goto cleanup;
-        } // reject already accepted old packets
+        ret = PACKET_REDUNDANT;
+        goto cleanup;
     }
 
+
+    last_received_ack_id = rx_p->ack_id;
+    last_received_seq_number = rx_p->sequence_number;
     switch (check_packet_type(rx_p))
     {
     case PACKET_BEGIN:
@@ -113,6 +115,11 @@ rx_handler_return rx_packet_handler(packet *rx_p)
         break;
 
     case PACKET_END:
+        if (!capture)
+        {
+            ret = CAPTURE_NOT_ON;
+            break;
+        }
         capture = false;
         capture_end_handler(captured_packet_arr, captured_n);
         ret = CAPTURE_END;

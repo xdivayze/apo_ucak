@@ -12,6 +12,8 @@ typedef enum
     CAPTURE_ALREADY_ON,
     UNKNOWN_PACKET,
     NULL_PACKET,
+    CAPTURE_NOT_ON,
+    PACKET_REDUNDANT,
 
 } rx_handler_return;
 
