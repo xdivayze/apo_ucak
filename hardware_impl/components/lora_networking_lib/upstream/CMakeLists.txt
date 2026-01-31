@@ -15,6 +15,7 @@ target_sources(lora_networking_lib
     PRIVATE
     src/packet.c
     src/network_data_operations.c
+    src/rx_packet_handler.c
 )
 
 target_include_directories(lora_networking_lib
@@ -27,6 +28,6 @@ set(COMPILE_OPTIONS_DEBUG
 
 target_compile_options(lora_networking_lib
     PRIVATE
-    -Wall -Wextra 
+    -Wall -Wextra
     ${COMPILE_OPTIONS_DEBUG}
 )

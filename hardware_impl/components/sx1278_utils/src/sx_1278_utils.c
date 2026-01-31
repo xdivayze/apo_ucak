@@ -13,6 +13,7 @@
 
 #define TAG "sx_1278_utils"
 
+
 // read from BEGIN to END packets sending ACKs in between
 // discards anything not intended for host address
 // assumes p_buf has sizeof(packet*)*num bytes
@@ -101,6 +102,8 @@ cleanup:
 
     return ret;
 }
+
+
 
 esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout)
 {
