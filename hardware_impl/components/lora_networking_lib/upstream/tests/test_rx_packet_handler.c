@@ -16,6 +16,7 @@ static void log_info(char *str)
 
 static void command_callback(packet *rx_p)
 {
+    assert(strcmp(rx_p->payload, COMMAND_PAYLOAD_STR) == 0);
     free_packet(rx_p);
 }
 
@@ -27,11 +28,53 @@ static void packet_end_callback(packet **p_arr, int n)
     free(data_arr);
 }
 
+void test_handler_command_packet_bypass()
+{
+    log_info("starting command packet bypass test");
+    reset_packet_handler_state();
 
+    // TODO
+}
+
+void test_handler_single_command_packet()
+{
+    log_info("starting command packet test");
+    reset_packet_handler_state();
+    char *data_str = COMMAND_PAYLOAD_STR;
+    size_t data_len = strlen(data_str) + 1;
+    uint8_t *data = malloc(data_len);
+    uint16_t daddr = 0xFF00;
+    uint16_t saddr = 0x00FF;
+
+    configure_rx_packet_handler(command_callback, packet_end_callback, daddr, saddr);
+
+    uint8_t data_str2[256];
+
+    memcpy(data, data_str, data_len);
+
+    size_t npackets = (size_t)ceil((double)data_len / payload_length_max);
+    packet **p_arr = malloc(sizeof(packet *) * npackets);
+    int ret;
+    if (data_to_packet_array(p_arr, data, data_len, daddr, saddr, 0x01, false))
+    {
+        ret = -1;
+        goto cleanup;
+    }
+
+    for (int i = 0; i < npackets; i++)
+    {
+        rx_packet_handler(p_arr[i]);
+    }
+
+cleanup:
+    free(data);
+    free(p_arr);
+}
 
 void test_handler_single_array_all_capture_with_redundancy()
 {
     log_info("starting single array all capture with redundancy test");
+    reset_packet_handler_state();
     char *data_str = TEST_STRING;
     size_t data_len = strlen(data_str) + 1;
     uint8_t *data = malloc(data_len);
@@ -68,6 +111,7 @@ cleanup:
 void test_handler_single_array_all_capture_no_redundancy()
 {
     log_info("starting single array no redundancy all capture test");
+    reset_packet_handler_state();
     char *data_str = TEST_STRING;
     size_t data_len = strlen(data_str) + 1;
     uint8_t *data = malloc(data_len);
@@ -103,5 +147,6 @@ int main()
 {
     test_handler_single_array_all_capture_no_redundancy();
     test_handler_single_array_all_capture_with_redundancy();
+    test_handler_single_command_packet();
     return 0;
 }

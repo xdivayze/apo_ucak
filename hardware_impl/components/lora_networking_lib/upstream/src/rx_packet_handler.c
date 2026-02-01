@@ -128,8 +128,8 @@ rx_handler_return rx_packet_handler(packet *rx_p)
             ret = CAPTURE_NOT_ON;
             break;
         }
-        capture = false;
         capture_end_handler(captured_packet_arr, captured_n);
+        reset_packet_handler_state();
         ret = CAPTURE_END;
         break;
 
