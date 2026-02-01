@@ -1,6 +1,6 @@
 #include "rx_packet_handler.h"
 
-#define PACKET_CAPTURE_MAX_COUNT UINT8_MAX
+#define PACKET_CAPTURE_MAX_COUNT (UINT8_MAX - 1)
 
 static bool capture = false;
 static uint8_t capture_ack_id = 0x00;
@@ -18,7 +18,7 @@ void set_remote_addr(uint16_t cfg_remote_src_addr)
     remote_src_addr = cfg_remote_src_addr;
 }
 
-// passed callback functions must consume the passed packets
+// passed callback functions must take ownership of the passed packets
 void configure_rx_packet_handler(command_packet_handler_t cfg_command_packet_handler, capture_end_handler_t cfg_capture_end_handler, uint16_t cfg_host_addr, uint16_t cfg_remote_src_addr)
 {
     command_packet_handler = cfg_command_packet_handler;
@@ -42,7 +42,7 @@ packet **get_rx_captured_packet_array()
     return captured_packet_arr;
 }
 
-// rx_p ownership transferred to function.
+// rx_p ownership transferred to callee
 rx_handler_return rx_packet_handler(packet *rx_p)
 {
     static uint8_t last_received_ack_id = 0x00;
@@ -67,12 +67,12 @@ rx_handler_return rx_packet_handler(packet *rx_p)
         goto cleanup;
     }
 
+    // reject redundant packets
     if ((rx_p->ack_id == last_received_ack_id) && (rx_p->sequence_number == last_received_seq_number))
     {
         ret = PACKET_REDUNDANT;
         goto cleanup;
     }
-
 
     last_received_ack_id = rx_p->ack_id;
     last_received_seq_number = rx_p->sequence_number;
@@ -99,6 +99,14 @@ rx_handler_return rx_packet_handler(packet *rx_p)
                 ret = CAPTURE_ARRAY_FULL;
                 break;
             }
+
+            // reject the packet if it is not the next sequential one
+            if ((rx_p->sequence_number != (captured_n + 1))) // data packets start at index 1, check for the next one
+            {
+                ret = PACKET_REJECTED;
+                goto cleanup;
+            }
+
             captured_packet_arr[captured_n] = rx_p;
             captured_n++;
             ret = DATA_PACKET_CAPTURED;
