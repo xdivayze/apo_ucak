@@ -36,6 +36,8 @@ packet *ack_packet(uint16_t dest_address, uint16_t src_address, uint8_t ack_id,
 
 packet *packet_constructor(uint16_t dest_address, uint16_t src_address, uint8_t ack_id,
                            uint8_t sequence_number, uint8_t payload_length, uint8_t *payload);
+
+packet *copy_packet(const packet* p);
 void free_packet(packet *p);
 
 int packet_to_bytestream(uint8_t *buffer, size_t buffer_size, packet *pkt);

@@ -8,9 +8,11 @@
 int packet_array_to_data(packet **p_buf, uint8_t *data, int len)
 {
     size_t size = 0;
+    char *p_desc = malloc(2048);
 
     for (int i = 0; i < len; i++)
     {
+        packet_description(p_buf[i], p_desc);
         memcpy(&data[size], p_buf[i]->payload, p_buf[i]->payload_length);
         size += p_buf[i]->payload_length;
     }

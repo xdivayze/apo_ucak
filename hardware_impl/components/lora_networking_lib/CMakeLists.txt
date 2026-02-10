@@ -5,7 +5,9 @@ idf_component_register(
         "upstream/src/rx_packet_handler.c"
     INCLUDE_DIRS
         "upstream/include"
-)
+    REQUIRES 
+        log
+        )
 
 
 target_compile_options(${COMPONENT_LIB} PRIVATE

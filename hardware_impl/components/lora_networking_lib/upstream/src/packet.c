@@ -70,6 +70,15 @@ void packet_description(packet *p, char *buf)
     sprintf(buf, "PACKET TYPE: %i\n DEST_ADDR: 0x%04" PRIx16 "\nSRC_ADDR: 0x%04" PRIx16 "\nACK_ID: 0x%02x\nSEQ: 0x%02x\nPAYLOAD_LENGTH: 0x%02x\nDATA: %s\n", check_packet_type(p), p->dest_address, p->src_address, p->ack_id, p->sequence_number, p->payload_length, str);
     free(str);
 }
+
+packet *copy_packet(const packet* p) {
+    packet* np = malloc(sizeof(packet));
+    uint8_t* np_payload_buf = malloc(p->payload_length);
+    memcpy (np,p,sizeof(packet));
+    memcpy(np_payload_buf, p->payload, p->payload_length);
+    np->payload = np_payload_buf;
+    return np;
+}
 // does not allocate payload
 packet *packet_constructor(uint16_t dest_address, uint16_t src_address, uint8_t ack_id,
                            uint8_t sequence_number, uint8_t payload_length, uint8_t *payload)

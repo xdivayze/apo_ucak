@@ -21,7 +21,7 @@ static void command_callback(packet *rx_p)
 {
     char *p_desc = malloc(2048);
     packet_description(rx_p, p_desc);
-    ESP_LOGI(TAG, "received  packet:\n%s", p_desc);
+    ESP_LOGI("command callback", "received  packet:\n%s", p_desc);
     free_packet(rx_p);
     free(p_desc);
 }
@@ -29,16 +29,21 @@ static void command_callback(packet *rx_p)
 static void packet_end_callback(packet **p_arr, int n)
 {
     uint8_t *data_arr = malloc(256);
+    
+    
     packet_array_to_data(p_arr, data_arr, n);
-    ESP_LOGI(TAG, "received: %s", data_arr);
+    
+    ESP_LOGI("packet stream end callback", "received: %s", data_arr);
     free(data_arr);
 }
 
 esp_err_t test_rx_handler_receive_burst()
 {
     configure_rx_packet_handler(command_callback, packet_end_callback, 0x1222, 0x2111);
-    return start_rx_loop();
-    
+    esp_err_t ret = start_rx_loop();
+    if (ret != ESP_OK)
+        ESP_LOGE(TAG, "error occured while running rx loop");
+    return ret;
 }
 
 esp_err_t test_receive_single(int timeout)

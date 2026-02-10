@@ -62,10 +62,10 @@ esp_err_t start_rx_loop()
             goto cleanup;
         }
 
-        packet_description(rx_p, p_desc);
-        ESP_LOGI(TAG, "received  packet:\n%s", p_desc);
+        // packet_description(rx_p, p_desc);
+        // ESP_LOGI(TAG, "received  packet:\n%s", p_desc);
 
-        //rx_packet_handler(rx_p);
+        rx_packet_handler(rx_p);
     }
 
 cleanup:

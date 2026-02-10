@@ -1,5 +1,4 @@
 #include "rx_packet_handler.h"
-
 #define PACKET_CAPTURE_MAX_COUNT (UINT8_MAX - 1)
 
 static bool capture = false;
@@ -19,11 +18,9 @@ void set_remote_addr(uint16_t cfg_remote_src_addr)
 {
     remote_src_addr = cfg_remote_src_addr;
 }
-
 // passed callback functions must take ownership of the passed packets
 void configure_rx_packet_handler(command_packet_handler_t cfg_command_packet_handler, capture_end_handler_t cfg_capture_end_handler, uint16_t cfg_host_addr, uint16_t cfg_remote_src_addr)
 {
-
     command_packet_handler = cfg_command_packet_handler;
     capture_end_handler = cfg_capture_end_handler;
     host_addr = cfg_host_addr;
@@ -45,7 +42,6 @@ packet **get_rx_captured_packet_array()
 {
     return captured_packet_arr;
 }
-
 // rx_p ownership transferred to callee
 rx_handler_return rx_packet_handler(packet *rx_p)
 {
@@ -117,15 +113,16 @@ rx_handler_return rx_packet_handler(packet *rx_p)
                 ret = PACKET_REJECTED;
                 goto cleanup;
             }
-
-            captured_packet_arr[captured_n] = rx_p;
+            packet* rx_p_copy = copy_packet(rx_p);
+            captured_packet_arr[captured_n] = rx_p_copy;
             captured_n++;
             ret = DATA_PACKET_CAPTURED;
             break;
         }
         if (rx_p->ack_id != capture_ack_id)
         { // ack id is not being captured, process command packet
-            command_packet_handler(rx_p);
+            packet* rx_p_copy = copy_packet(rx_p);
+            command_packet_handler(rx_p_copy);
             ret = COMMAND_PACKET;
             break;
         }

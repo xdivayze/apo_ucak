@@ -120,7 +120,7 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
 #ifdef ESP32C6
-        start_rx_loop();
+        test_rx_handler_receive_burst();
 
 #endif
     }
