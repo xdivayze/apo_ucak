@@ -14,98 +14,8 @@
 #define TAG "sx_1278_utils"
 
 
-// read from BEGIN to END packets sending ACKs in between
-// discards anything not intended for host address
-// assumes p_buf has sizeof(packet*)*num bytes
-esp_err_t read_burst(packet **p_buf, int *len, int handshake_timeout, uint16_t host_addr)
-{
-    int n = -1;
-    uint8_t data = 0;
-    packet *p = malloc(sizeof(packet));
-    p->payload = NULL;
-    char *packet_print = malloc(2048);
 
-    esp_err_t ret;
-    uint16_t target_addr = 0;
-    uint8_t ack_id = 0;
-    bool end_reached = false;
-    int repeat = (int)round(handshake_timeout / PHY_TIMEOUT_MSEC);
-    for (int i = 0; i < repeat; i++)
-    {
-        ret = sx1278_poll_and_read_packet(p, PHY_TIMEOUT_MSEC);
-
-        if (ret != ESP_OK)
-            continue;
-        if (check_packet_features(p, p->src_address, host_addr, p->ack_id, 0, PACKET_BEGIN)) // accept if destination address matches and is a valid handshake packet
-        {
-            target_addr = p->src_address; // set the source address
-            ack_id = p->ack_id;           // set the ack id
-            n = 1;
-            ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, p->sequence_number), true);
-            if (ret != ESP_OK)
-                continue;
-            break;
-        }
-    }
-
-    if (n != 1)
-    {
-        ret = ESP_ERR_TIMEOUT;
-        goto cleanup;
-    }
-
-    while (!end_reached)
-    {
-        for (int i = 0; i < (repeat + 1); i++)
-        {
-            if (i == repeat)
-            {
-                ret = ESP_ERR_TIMEOUT;
-                goto cleanup;
-            }
-            ret = sx1278_poll_and_read_packet(p, PHY_TIMEOUT_MSEC);
-            if (ret != ESP_OK)
-                continue;
-
-            packet_description(p, packet_print);
-
-            if (check_packet_features(p, target_addr, host_addr, ack_id, n, PACKET_DATA)) // check if nth data packet
-            {
-                ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, n), true);
-                if (ret != ESP_OK)
-                    continue; // if ACK is not sent repeat everything
-
-                p_buf[n - 1] = malloc(sizeof(packet));
-                memcpy(p_buf[n - 1], p, sizeof(packet)); // only update buffer if ack is sent
-                n++;
-                break;
-            }
-            else if (check_packet_features(p, target_addr, host_addr, ack_id, UINT8_MAX, PACKET_END))
-            {
-                ret = sx_1278_send_packet(ack_packet(target_addr, host_addr, ack_id, UINT8_MAX), false); // end packet continue at standby
-                if (ret != ESP_OK)
-                    continue; // if ACK is not sent repeat everything
-                end_reached = true;
-                break;
-            }
-        }
-    }
-
-    ret = ESP_OK;
-    *len = n - 1;
-
-cleanup:
-
-    sx1278_switch_mode((MODE_LORA | MODE_SLEEP));
-    free_packet(p);
-    free(packet_print);
-
-    return ret;
-}
-
-
-
-esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout)
+esp_err_t   sx1278_poll_and_read_packet(packet *rx_p, int timeout)
 {
     esp_err_t ret;
     uint8_t data;
@@ -116,7 +26,7 @@ esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout)
         goto cleanup;
     }
 
-    ret = poll_for_irq_flag(timeout, 5, 1 << 6, false);
+    ret = poll_for_irq_flag(timeout, 1, 1 << 6, false);
     if (ret != ESP_OK)
     {
         sx1278_read_irq(&data);
@@ -142,7 +52,7 @@ esp_err_t sx1278_poll_and_read_packet(packet *rx_p, int timeout)
 
 cleanup:
     sx1278_clear_irq();
-    sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
+    sx1278_switch_mode(MODE_LORA | MODE_STDBY);
     return ret;
 }
 
@@ -183,6 +93,10 @@ cleanup:
 esp_err_t sx_1278_send_packet(packet *p, int switch_to_rx_after_tx)
 {
     static uint8_t tx_buffer[255];
+    char* p_desc = malloc(255);
+    packet_description(p, p_desc);
+    ESP_LOGI(TAG,"sending %s", p_desc);
+    free(p_desc);
 
     int packet_size = packet_to_bytestream(tx_buffer, sizeof(tx_buffer), p);
 
@@ -268,6 +182,8 @@ esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type)
             continue;
         }
 
+        ESP_LOGI(TAG,"ack accepted");
+
         ret = ESP_OK;
         goto cleanup;
     }
@@ -277,6 +193,7 @@ esp_err_t send_packet_ensure_ack(packet *p, int timeout, packet_types ack_type)
 cleanup:
     sx1278_clear_irq();
     free_packet(rx_p);
+    free(p_desc);
     sx1278_switch_mode(MODE_LORA | MODE_SLEEP);
     return ret;
 }
@@ -354,8 +271,7 @@ esp_err_t poll_for_irq_flag_no_timeout(size_t poll_interval_ms, uint8_t irq_and_
     uint8_t data;
     while (1)
     {
-
-        ret = spi_burst_read_reg(sx_1278_spi, 0x12, &irq, 1);
+        ret = sx1278_read_irq(&irq);
         if (ret != ESP_OK)
         {
             ESP_LOGE(TAG, "couldnt read irq register\n");
@@ -366,8 +282,11 @@ esp_err_t poll_for_irq_flag_no_timeout(size_t poll_interval_ms, uint8_t irq_and_
             }
             return ret;
         }
+        
+        
         if (irq & irq_and_mask)
         {
+            
             if (cleanup)
             {
                 data = 0xFF;

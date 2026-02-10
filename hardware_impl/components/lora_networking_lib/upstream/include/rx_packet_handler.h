@@ -14,7 +14,7 @@ typedef enum
     NULL_PACKET,
     CAPTURE_NOT_ON,
     PACKET_REDUNDANT,
-
+    HANDLER_NOT_CONFIGURED,
 } rx_handler_return;
 
 typedef void (*command_packet_handler_t)(packet *p);

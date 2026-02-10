@@ -69,7 +69,6 @@ esp_err_t test_send_single_packet_expect_ack(int timeout)
 esp_err_t test_send_single()
 {
     uint8_t d[5] = {'a', 'm', 'u', 'm', 'u'};
-
     esp_err_t ret = sx1278_send_payload(d, 5, false);
     return ret;
 }

@@ -10,41 +10,35 @@
 #include <math.h>
 #include "esp_timer.h"
 #include "sx_1278_config.h"
-
+#include "rx_packet_handler.h"
+#include "sx_1278_rx_utils.h"
 #define HOST_ADDR 0x1222
 #define TARGET_ADDR 0x2111
 
 #define TAG "rx_test"
 
-// TODO burst receive test util where receiver only sends ack on the second receive
-
-esp_err_t test_receive_burst(int timeout)
+static void command_callback(packet *rx_p)
 {
-    int64_t t0 = esp_timer_get_time();
-    int64_t t1 = 0;
-    esp_err_t ret;
-    packet **p_buf = malloc(sizeof(packet *) * 20);
-    if (!p_buf)
-        return ESP_ERR_NO_MEM;
-    int len = 0;
-    uint8_t *res_str = malloc(256);
+    char *p_desc = malloc(2048);
+    packet_description(rx_p, p_desc);
+    ESP_LOGI(TAG, "received  packet:\n%s", p_desc);
+    free_packet(rx_p);
+    free(p_desc);
+}
 
-    ret = read_burst(p_buf, &len, timeout, HOST_ADDR);
-    if (ret != ESP_OK)
-    {
-        goto cleanup;
-    }
-    t1 = esp_timer_get_time();
+static void packet_end_callback(packet **p_arr, int n)
+{
+    uint8_t *data_arr = malloc(256);
+    packet_array_to_data(p_arr, data_arr, n);
+    ESP_LOGI(TAG, "received: %s", data_arr);
+    free(data_arr);
+}
 
-    ESP_LOGI(TAG, "received %i packets in %.4f seconds.", len, (t1 - t0) / ((float)1e6));
-    packet_array_to_data(p_buf, res_str, len);
-
-    ESP_LOGI(TAG, "received data: %s", res_str);
-
-cleanup:
-    free(p_buf);
-    free(res_str);
-    return ret;
+esp_err_t test_rx_handler_receive_burst()
+{
+    configure_rx_packet_handler(command_callback, packet_end_callback, 0x1222, 0x2111);
+    return start_rx_loop();
+    
 }
 
 esp_err_t test_receive_single(int timeout)

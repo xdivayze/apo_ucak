@@ -10,6 +10,8 @@ static size_t captured_n = 0;
 static uint16_t remote_src_addr = 0x00;
 static uint16_t host_addr = 0x00;
 
+static bool handlerConfigured = false;
+
 command_packet_handler_t command_packet_handler;
 capture_end_handler_t capture_end_handler;
 
@@ -21,10 +23,12 @@ void set_remote_addr(uint16_t cfg_remote_src_addr)
 // passed callback functions must take ownership of the passed packets
 void configure_rx_packet_handler(command_packet_handler_t cfg_command_packet_handler, capture_end_handler_t cfg_capture_end_handler, uint16_t cfg_host_addr, uint16_t cfg_remote_src_addr)
 {
+
     command_packet_handler = cfg_command_packet_handler;
     capture_end_handler = cfg_capture_end_handler;
     host_addr = cfg_host_addr;
     remote_src_addr = cfg_remote_src_addr;
+    handlerConfigured = true;
 }
 
 // resets the array index
@@ -45,9 +49,16 @@ packet **get_rx_captured_packet_array()
 // rx_p ownership transferred to callee
 rx_handler_return rx_packet_handler(packet *rx_p)
 {
+
     static uint8_t last_received_ack_id = 0x00;
     static uint8_t last_received_seq_number = 0x00;
     rx_handler_return ret = UNKNOWN_PACKET;
+
+    if (!handlerConfigured)
+    {
+        ret = HANDLER_NOT_CONFIGURED;
+        goto cleanup;
+    }
 
     if (!rx_p)
     {

@@ -5,8 +5,9 @@
 #include <stdlib.h>
 #include "sx_1278_utils.h"
 #include "sx_1278_config.h"
+#include "rx_packet_handler.h"
 #define TAG "rx utils"
-esp_err_t start_rx_loop(uint16_t host_addr)
+esp_err_t start_rx_loop()
 {
     esp_err_t ret;
     uint8_t data;
@@ -53,13 +54,8 @@ esp_err_t start_rx_loop(uint16_t host_addr)
             ESP_LOGE(TAG, "error occured while reading the last packet");
             continue;
         }
-        if (host_addr != 0x00)
-        {
-            if (rx_p->dest_address != host_addr)
-                continue;
-        }
 
-        ret = sx_1278_send_packet(ack_packet(rx_p->src_address, rx_p->dest_address, rx_p->ack_id, rx_p->sequence_number), true);
+        ret = sx_1278_send_packet(ack_packet(rx_p->src_address, rx_p->dest_address, rx_p->ack_id, rx_p->sequence_number), false);
         if (ret != ESP_OK)
         {
             ESP_LOGE(TAG, "error occured while sending the ack packet");
@@ -68,13 +64,14 @@ esp_err_t start_rx_loop(uint16_t host_addr)
 
         packet_description(rx_p, p_desc);
         ESP_LOGI(TAG, "received  packet:\n%s", p_desc);
+
+        //rx_packet_handler(rx_p);
     }
 
 cleanup:
     free_packet(rx_p);
     return ret;
 }
-
 
 // uses irq flags to check if rxdone is set but does not poll for the flag. for polling use poll_for_irq_flag
 // resets irq

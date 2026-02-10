@@ -11,7 +11,9 @@
 #include "rx_tests.h"
 #include "sx_1278_config.h"
 #include "sx_1278_rx_utils.h"
-#define ESP32C3
+#include "rx_packet_handler.h"
+
+#define ESP32C6
 
 #ifdef ESP32C6
 #define SX_NSS GPIO_NUM_18
@@ -27,7 +29,7 @@
 #define SX_MOSI GPIO_NUM_2
 #endif
 
-#define SX_SPI_CLOCK_SPEED 10000
+#define SX_SPI_CLOCK_SPEED 100000
 
 spi_device_handle_t sx_1278_spi;
 #define LORA_SPI_HOST SPI2_HOST
@@ -92,7 +94,7 @@ void app_main(void)
     esp_err_t ret;
     size_t n = 0;
 
-    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(7));
+    ESP_ERROR_CHECK(sx_1278_set_spreading_factor(10));
 
     while (1)
     {
@@ -111,13 +113,14 @@ void app_main(void)
         if (!(data >> 7))
             ESP_LOGE(TAG, "not in lora mode\n");
         ESP_LOGI(TAG, "sx1278 op mode: 0x%x", data);
-
+        ESP_ERROR_CHECK(spi_burst_read_reg(sx_1278_spi, 0x1E, &data, 1));
+        ESP_LOGI(TAG, "sx1278 sf: 0x%x", data);
 #ifdef ESP32C3
-        start_rx_loop(0x00);
-#endif
-#ifdef ESP32C6 //TODO pacjet received handler
-        test_send_burst(3000);
+        test_send_single_packet_expect_ack(3000);
         vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
+#ifdef ESP32C6
+        start_rx_loop();
 
 #endif
     }

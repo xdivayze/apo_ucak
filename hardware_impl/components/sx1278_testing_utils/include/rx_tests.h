@@ -1,7 +1,6 @@
 #pragma once
 #include "esp_err.h"
 esp_err_t test_receive_single_packet(int timeout);
-
-esp_err_t test_receive_burst(int timeout);
+esp_err_t test_rx_handler_receive_burst();
 esp_err_t test_receive_single(int timeout);
 esp_err_t test_receive_single_packet_send_ack(int timeout);
